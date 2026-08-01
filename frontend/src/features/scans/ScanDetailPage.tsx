@@ -394,25 +394,25 @@ export default function ScanDetailPage({ scanId }: { scanId: string }) {
 
       {/* 漏洞详情 */}
       <Dialog open={!!selected} onOpenChange={(v) => !v && setSelected(null)}>
-        <DialogContent className="max-w-2xl">
+        <DialogContent className="max-w-2xl overflow-x-hidden">
           {selected && (
             <>
               <DialogHeader>
-                <DialogTitle className="flex items-center gap-2 pr-6">
-                  <Badge variant={SEVERITY_META[selected.severity ?? 'INFO']?.badge ?? 'info'}>
+                <DialogTitle className="flex items-start gap-2 pr-6">
+                  <Badge variant={SEVERITY_META[selected.severity ?? 'INFO']?.badge ?? 'info'} className="mt-0.5 shrink-0">
                     {SEVERITY_META[selected.severity ?? 'INFO']?.label}
                   </Badge>
-                  {selected.title}
+                  <span className="min-w-0 flex-1 break-words leading-snug">{selected.title}</span>
                 </DialogTitle>
-                <DialogDescription>
+                <DialogDescription className="break-all">
                   {ENGINE_LABEL[selected.engine] ?? selected.engine} · {selected.category}
                   {selected.vulnId && ` · ${selected.vulnId}`}
                   {selected.cwe && ` · ${selected.cwe}`}
                 </DialogDescription>
               </DialogHeader>
-              <div className="space-y-3 text-sm">
+              <div className="min-w-0 space-y-3 text-sm">
                 {selected.dependencyName && (
-                  <div className="rounded-md border-2 border-ink/10 bg-paper p-3">
+                  <div className="break-all rounded-md border-2 border-ink/10 bg-paper p-3">
                     <span className="font-bold text-ink">依赖：</span>
                     <span className="font-mono text-ink">{selected.dependencyName}@{selected.dependencyVersion}</span>
                     {selected.fixedVersion && (
@@ -423,7 +423,7 @@ export default function ScanDetailPage({ scanId }: { scanId: string }) {
                   </div>
                 )}
                 {selected.file && (
-                  <div className="rounded-md border-2 border-ink/10 bg-paper p-3">
+                  <div className="break-all rounded-md border-2 border-ink/10 bg-paper p-3">
                     <span className="font-bold text-ink">位置：</span>
                     <span className="font-mono text-ink">{selected.file}</span>
                     {selected.line != null && <span className="ml-1 font-bold text-primary">第 {selected.line} 行</span>}
@@ -437,7 +437,7 @@ export default function ScanDetailPage({ scanId }: { scanId: string }) {
                 {selected.description && (
                   <div>
                     <div className="mb-1 font-black text-ink">问题描述</div>
-                    <p className="whitespace-pre-wrap rounded-md border-2 border-ink/10 bg-paper p-3 leading-relaxed text-ink">
+                    <p className="break-words whitespace-pre-wrap rounded-md border-2 border-ink/10 bg-paper p-3 leading-relaxed text-ink">
                       {selected.description}
                     </p>
                   </div>
@@ -445,7 +445,7 @@ export default function ScanDetailPage({ scanId }: { scanId: string }) {
                 {selected.solution && (
                   <div>
                     <div className="mb-1 font-black text-success">解决方案</div>
-                    <div className="rounded-md border-2 border-ink/10 bg-secondary/20 p-3 leading-relaxed text-ink">
+                    <div className="break-words rounded-md border-2 border-ink/10 bg-secondary/20 p-3 leading-relaxed text-ink">
                       {selected.solution}
                     </div>
                   </div>
