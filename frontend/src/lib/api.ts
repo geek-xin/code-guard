@@ -116,6 +116,8 @@ export interface Project {
   tokenConfigured?: boolean;
   scheduleCron?: string;
   scheduleEnabled: boolean;
+  emailNotify?: boolean;
+  emails?: string[];
   enabled: boolean;
   syncStatus: string;
   syncMessage?: string;
@@ -200,6 +202,16 @@ export interface TrendPoint {
 }
 
 export interface SettingsView {
+  smtp: {
+    enabled: boolean;
+    host: string;
+    port?: number;
+    username: string;
+    from: string;
+    ssl: boolean;
+    passwordConfigured: boolean;
+    ready: boolean;
+  };
   agent: {
     enabled: boolean;
     baseUrl: string;
@@ -220,6 +232,15 @@ export interface SettingsPayload {
     baseUrl?: string;
     apiKey?: string;
     model?: string;
+  };
+  smtp?: {
+    enabled?: boolean;
+    host?: string;
+    port?: number;
+    username?: string;
+    password?: string;
+    from?: string;
+    ssl?: boolean;
   };
 }
 

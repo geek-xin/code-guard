@@ -26,6 +26,21 @@ public class SettingsController {
     }
 
     @Data
+    public static class SmtpRequest {
+        private Boolean enabled;
+        @Size(max = 256)
+        private String host;
+        private Integer port;
+        @Size(max = 256)
+        private String username;
+        @Size(max = 2048)
+        private String password;
+        @Size(max = 256)
+        private String from;
+        private Boolean ssl;
+    }
+
+    @Data
     public static class AgentRequest {
         private Boolean enabled;
         @Size(max = 512)
@@ -39,6 +54,7 @@ public class SettingsController {
     @Data
     public static class SettingsRequest {
         private AgentRequest agent;
+        private SmtpRequest smtp;
     }
 
     /** 全局配置（脱敏视图） */
@@ -52,6 +68,18 @@ public class SettingsController {
     public Mono<Result<Map<String, Object>>> update(@Valid @RequestBody SettingsRequest req) {
         return Mono.fromCallable(() -> {
             Settings update = new Settings();
+            if (req.getSmtp() != null) {
+                Settings.Smtp smtp = Settings.Smtp.builder()
+                        .enabled(req.getSmtp().getEnabled())
+                        .host(req.getSmtp().getHost())
+                        .port(req.getSmtp().getPort())
+                        .username(req.getSmtp().getUsername())
+                        .password(req.getSmtp().getPassword())
+                        .from(req.getSmtp().getFrom())
+                        .ssl(req.getSmtp().getSsl())
+                        .build();
+                update.setSmtp(smtp);
+            }
             if (req.getAgent() != null) {
                 Settings.Agent agent = Settings.Agent.builder()
                         .enabled(req.getAgent().getEnabled())

@@ -34,6 +34,8 @@ export default function ProjectFormDialog({
   const [token, setToken] = useState('');
   const [scheduleCron, setScheduleCron] = useState('');
   const [scheduleEnabled, setScheduleEnabled] = useState(false);
+  const [emailNotify, setEmailNotify] = useState(false);
+  const [emails, setEmails] = useState('');
   const [enabled, setEnabled] = useState(true);
   const [saving, setSaving] = useState(false);
 
@@ -48,6 +50,8 @@ export default function ProjectFormDialog({
       setToken('');
       setScheduleCron(project?.scheduleCron ?? '');
       setScheduleEnabled(project?.scheduleEnabled ?? false);
+      setEmailNotify(project?.emailNotify ?? false);
+      setEmails(project?.emails?.join(', ') ?? '');
       setEnabled(project?.enabled ?? true);
     }
   }, [open, project]);
@@ -65,6 +69,8 @@ export default function ProjectFormDialog({
         repoUrl: source === 'LOCAL' ? undefined : repoUrl,
         scheduleCron: scheduleEnabled ? scheduleCron : undefined,
         scheduleEnabled,
+        emailNotify,
+        emails: emailNotify ? emails.split(/[,，;\n]/).map((e) => e.trim()).filter(Boolean) : undefined,
         enabled,
       };
       if (token.trim()) data.token = token.trim();
@@ -167,6 +173,31 @@ export default function ProjectFormDialog({
                   placeholder="cron 表达式，如 0 0 2 * * ? （每天 02:00）" />
                 <p className="mt-1 text-[11px] font-semibold text-ink-muted">
                   支持秒/分/时/日/月/周：<code>0 0 2 * * ?</code> 每天 2 点 · <code>0 */30 * * * ?</code> 每 30 分钟
+                </p>
+              </div>
+            )}
+          </div>
+
+          <div className="rounded-md border-2 border-ink/10 bg-paper p-3">
+            <div className="flex items-center justify-between">
+              <label className="text-xs font-bold text-ink">扫描后邮件推送报告（PDF）</label>
+              <button
+                type="button"
+                onClick={() => setEmailNotify(!emailNotify)}
+                className={cn(
+                  'relative h-6 w-11 rounded-full border-chunky border-ink transition-colors',
+                  emailNotify ? 'bg-secondary' : 'bg-paper',
+                )}
+              >
+                <span className={cn('absolute top-0.5 h-4 w-4 rounded-full border border-ink bg-white transition-all', emailNotify ? 'left-6' : 'left-0.5')} />
+              </button>
+            </div>
+            {emailNotify && (
+              <div className="mt-2">
+                <Input value={emails} onChange={(e) => setEmails(e.target.value)}
+                  placeholder="接收邮箱，多个用逗号/分号分隔，如 a@example.com, b@example.com" />
+                <p className="mt-1 text-[11px] font-semibold text-ink-muted">
+                  扫描完成后自动将 PDF 报告同时发送到所有邮箱（需先在「设置」中配置 SMTP）
                 </p>
               </div>
             )}

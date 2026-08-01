@@ -37,6 +37,8 @@ public class ProjectController {
         private String token;
         private String scheduleCron;
         private boolean scheduleEnabled;
+        private boolean emailNotify;
+        private List<String> emails;
         private boolean enabled = true;
     }
 
@@ -63,6 +65,9 @@ public class ProjectController {
                     .token(req.getToken())
                     .scheduleCron(req.getScheduleCron())
                     .scheduleEnabled(req.isScheduleEnabled())
+                    .emailNotify(req.isEmailNotify())
+                    .emails(req.getEmails() == null ? null : req.getEmails().stream()
+                            .map(String::trim).filter(e -> !e.isBlank()).toList())
                     .enabled(req.isEnabled())
                     .build();
             return projectService.create(project);
@@ -82,6 +87,8 @@ public class ProjectController {
                     .token(req.getToken())
                     .scheduleCron(req.getScheduleCron())
                     .scheduleEnabled(req.isScheduleEnabled())
+                    .emailNotify(req.isEmailNotify())
+                    .emails(req.getEmails())
                     .enabled(req.isEnabled())
                     .build();
             return projectService.update(id, update);

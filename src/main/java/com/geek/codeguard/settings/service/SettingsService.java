@@ -35,6 +35,23 @@ public class SettingsService {
 
     public synchronized void update(Settings update) {
         Settings current = get();
+        if (update.getSmtp() != null) {
+            Settings.Smtp cur = current.getSmtp() == null ? Settings.Smtp.builder().build() : current.getSmtp();
+            Settings.Smtp next = Settings.Smtp.builder()
+                    .enabled(update.getSmtp().getEnabled() != null ? update.getSmtp().getEnabled() : cur.getEnabled())
+                    .host(notBlank(update.getSmtp().getHost()) ? update.getSmtp().getHost().trim() : cur.getHost())
+                    .port(update.getSmtp().getPort() != null ? update.getSmtp().getPort() : cur.getPort())
+                    .username(notBlank(update.getSmtp().getUsername()) ? update.getSmtp().getUsername().trim() : cur.getUsername())
+                    .from(notBlank(update.getSmtp().getFrom()) ? update.getSmtp().getFrom().trim() : cur.getFrom())
+                    .ssl(update.getSmtp().getSsl() != null ? update.getSmtp().getSsl() : cur.getSsl())
+                    .password(cur.getPassword())
+                    .build();
+            String pwd = update.getSmtp().getPassword();
+            if (notBlank(pwd) && !"******".equals(pwd.trim())) {
+                next.setPassword(pwd.trim());
+            }
+            current.setSmtp(next);
+        }
         if (update.getAgent() != null) {
             Settings.Agent cur = current.getAgent() == null ? Settings.Agent.builder().build() : current.getAgent();
             Settings.Agent next = Settings.Agent.builder()
@@ -62,6 +79,18 @@ public class SettingsService {
         return jsonStore.paths().data.resolve("settings.json");
     }
 
+    /** SMTP 是否已完整配置（可用于发送邮件） */
+    public boolean smtpReady() {
+        Settings.Smtp s = get().getSmtp();
+        return s != null && Boolean.TRUE.equals(s.getEnabled())
+                && notBlank(s.getHost()) && s.getPort() != null
+                && notBlank(s.getUsername()) && notBlank(s.getPassword());
+    }
+
+    public Settings.Smtp smtp() {
+        return get().getSmtp();
+    }
+
     /** Agent 生效配置（settings 优先，缺省回退 application.yml） */
     public Settings.Agent effectiveAgent() {
         Settings.Agent s = get().getAgent();
@@ -85,6 +114,17 @@ public class SettingsService {
         agent.put("apiKeyConfigured", notBlank(a.getApiKey()));
         agent.put("source", notBlank(s.getAgent() != null ? s.getAgent().getApiKey() : null) ? "settings" : "env");
 
+        Settings.Smtp smtp = get().getSmtp();
+        Map<String, Object> smtpView = new LinkedHashMap<>();
+        smtpView.put("enabled", smtp != null && smtp.getEnabled() != null ? smtp.getEnabled() : false);
+        smtpView.put("host", smtp == null ? "" : smtp.getHost());
+        smtpView.put("port", smtp == null ? null : smtp.getPort());
+        smtpView.put("username", smtp == null ? "" : smtp.getUsername());
+        smtpView.put("from", smtp == null ? "" : smtp.getFrom());
+        smtpView.put("ssl", smtp != null && smtp.getSsl() != null ? smtp.getSsl() : true);
+        smtpView.put("passwordConfigured", smtp != null && notBlank(smtp.getPassword()));
+        smtpView.put("ready", smtpReady());
+
         Map<String, Object> oauth = new LinkedHashMap<>();
         oauth.put("githubConfigured", notBlank(props.getAuth().getGithub().getClientId()));
         oauth.put("gitlabConfigured", notBlank(props.getAuth().getGitlab().getClientId()));
@@ -92,6 +132,7 @@ public class SettingsService {
 
         Map<String, Object> result = new LinkedHashMap<>();
         result.put("agent", agent);
+        result.put("smtp", smtpView);
         result.put("oauth", oauth);
         return result;
     }

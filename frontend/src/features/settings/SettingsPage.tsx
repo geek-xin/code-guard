@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Sparkles, Save, Loader2, KeyRound, Github, Gitlab, ShieldCheck, RefreshCw } from 'lucide-react';
+import { Sparkles, Save, Loader2, KeyRound, Github, Gitlab, ShieldCheck, RefreshCw, Mail } from 'lucide-react';
 import { api, SettingsView } from '@/lib/api';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -15,6 +15,14 @@ export default function SettingsPage() {
   const [model, setModel] = useState('');
   const [apiKey, setApiKey] = useState('');
   const [saving, setSaving] = useState(false);
+  // SMTP
+  const [smtpEnabled, setSmtpEnabled] = useState(false);
+  const [smtpHost, setSmtpHost] = useState('');
+  const [smtpPort, setSmtpPort] = useState(465);
+  const [smtpUsername, setSmtpUsername] = useState('');
+  const [smtpPassword, setSmtpPassword] = useState('');
+  const [smtpFrom, setSmtpFrom] = useState('');
+  const [smtpSsl, setSmtpSsl] = useState(true);
 
   const load = () => {
     api.getSettings().then((s) => {
@@ -23,6 +31,13 @@ export default function SettingsPage() {
       setBaseUrl(s.agent.baseUrl ?? '');
       setModel(s.agent.model ?? '');
       setApiKey('');
+      setSmtpEnabled(s.smtp.enabled);
+      setSmtpHost(s.smtp.host ?? '');
+      setSmtpPort(s.smtp.port ?? 465);
+      setSmtpUsername(s.smtp.username ?? '');
+      setSmtpPassword('');
+      setSmtpFrom(s.smtp.from ?? '');
+      setSmtpSsl(s.smtp.ssl);
     }).catch(() => {});
   };
 
@@ -39,6 +54,15 @@ export default function SettingsPage() {
           baseUrl,
           model,
           apiKey: apiKey.trim() || undefined,
+        },
+        smtp: {
+          enabled: smtpEnabled,
+          host: smtpHost.trim() || undefined,
+          port: smtpPort || undefined,
+          username: smtpUsername.trim() || undefined,
+          password: smtpPassword.trim() || undefined,
+          from: smtpFrom.trim() || undefined,
+          ssl: smtpSsl,
         },
       };
       const updated = await api.updateSettings(payload);
@@ -125,6 +149,76 @@ export default function SettingsPage() {
             <Button variant="outline" onClick={load}>
               <RefreshCw className="h-4 w-4" /> 刷新
             </Button>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* SMTP 邮件推送 */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Mail className="h-4 w-4" /> SMTP 邮件推送
+          </CardTitle>
+          <CardDescription>
+            配置后，开启了「邮件报告」的项目在扫描完成时自动推送 PDF 报告到收件邮箱（支持多邮箱同时发送）
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="flex flex-wrap items-center gap-3">
+            <div className="flex items-center gap-2">
+              <span className="text-sm font-bold text-ink">启用 SMTP</span>
+              <button
+                type="button"
+                onClick={() => setSmtpEnabled(!smtpEnabled)}
+                className={cn(
+                  'relative h-6 w-11 rounded-full border-chunky border-ink transition-colors',
+                  smtpEnabled ? 'bg-secondary' : 'bg-paper',
+                )}
+              >
+                <span className={cn('absolute top-0.5 h-4 w-4 rounded-full border border-ink bg-white transition-all', smtpEnabled ? 'left-6' : 'left-0.5')} />
+              </button>
+            </div>
+            {view.smtp.ready
+              ? <Badge variant="success">配置就绪</Badge>
+              : <Badge variant="info">未完整配置</Badge>}
+            {view.smtp.passwordConfigured && <Badge variant="outline">授权码已设置</Badge>}
+          </div>
+
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+            <div>
+              <label className="mb-1 block text-xs font-bold text-ink-muted">SMTP 服务器</label>
+              <Input value={smtpHost} onChange={(e) => setSmtpHost(e.target.value)} placeholder="smtp.qq.com / smtp.163.com" />
+            </div>
+            <div>
+              <label className="mb-1 block text-xs font-bold text-ink-muted">端口</label>
+              <Input type="number" value={smtpPort} onChange={(e) => setSmtpPort(Number(e.target.value))} />
+            </div>
+            <div>
+              <label className="mb-1 block text-xs font-bold text-ink-muted">发件邮箱</label>
+              <Input value={smtpUsername} onChange={(e) => setSmtpUsername(e.target.value)} placeholder="your@example.com" />
+            </div>
+            <div>
+              <label className="mb-1 block text-xs font-bold text-ink-muted">SMTP 授权码 / 密码</label>
+              <Input type="password" value={smtpPassword} onChange={(e) => setSmtpPassword(e.target.value)}
+                placeholder={view.smtp.passwordConfigured ? '已配置（留空保持不变）' : '授权码'} />
+            </div>
+            <div>
+              <label className="mb-1 block text-xs font-bold text-ink-muted">发件人显示地址（可选）</label>
+              <Input value={smtpFrom} onChange={(e) => setSmtpFrom(e.target.value)} placeholder="留空使用发件邮箱" />
+            </div>
+            <div className="flex items-end pb-1">
+              <button
+                type="button"
+                onClick={() => setSmtpSsl(!smtpSsl)}
+                className={cn(
+                  'relative h-6 w-11 rounded-full border-chunky border-ink transition-colors',
+                  smtpSsl ? 'bg-secondary' : 'bg-paper',
+                )}
+              >
+                <span className={cn('absolute top-0.5 h-4 w-4 rounded-full border border-ink bg-white transition-all', smtpSsl ? 'left-6' : 'left-0.5')} />
+              </button>
+              <span className="ml-2 text-xs font-bold text-ink">SSL（465 端口默认开启；587 用 STARTTLS 请关闭）</span>
+            </div>
           </div>
         </CardContent>
       </Card>

@@ -1,6 +1,7 @@
 package com.geek.codeguard.scan.service;
 
 import com.geek.codeguard.agent.ReviewAgentService;
+import com.geek.codeguard.mail.MailService;
 import com.geek.codeguard.common.enums.ErrorCodeEnum;
 import com.geek.codeguard.common.exception.BusinessException;
 import com.geek.codeguard.config.CodeGuardProperties;
@@ -47,6 +48,7 @@ public class ScanService implements ScanProgressListener {
     private final SastRuleEngine sastRuleEngine;
     private final ReviewAgentService reviewAgentService;
     private final ProjectFileScanner fileScanner;
+    private final MailService mailService;
     private final CodeGuardProperties props;
 
     private final ExecutorService executor;
@@ -56,13 +58,14 @@ public class ScanService implements ScanProgressListener {
 
     public ScanService(JsonStore jsonStore, ProjectService projectService, ScaService scaService,
                        SastRuleEngine sastRuleEngine, ReviewAgentService reviewAgentService,
-                       ProjectFileScanner fileScanner, CodeGuardProperties props) {
+                       ProjectFileScanner fileScanner, MailService mailService, CodeGuardProperties props) {
         this.jsonStore = jsonStore;
         this.projectService = projectService;
         this.scaService = scaService;
         this.sastRuleEngine = sastRuleEngine;
         this.reviewAgentService = reviewAgentService;
         this.fileScanner = fileScanner;
+        this.mailService = mailService;
         this.props = props;
         int concurrency = Math.max(1, props.getScanConcurrency());
         this.executor = Executors.newFixedThreadPool(concurrency, r -> {
@@ -195,6 +198,14 @@ public class ScanService implements ScanProgressListener {
             projectService.save(project);
             emit(scanId, "done", Map.of("scanId", scanId, "status", "COMPLETED", "summary", summary));
             log.info("扫描完成 {} - {} : {} 个发现", project.getName(), scanId, findings.size());
+            // 邮件推送报告（多邮箱，默认 PDF 附件）
+            if (project.isEmailNotify() && project.getEmails() != null && !project.getEmails().isEmpty()) {
+                try {
+                    mailService.sendScanReport(project, record, findings);
+                } catch (Exception e) {
+                    log.warn("邮件推送失败: {}", e.getMessage());
+                }
+            }
         } catch (Exception e) {
             log.error("扫描失败 {}: {}", scanId, e.getMessage(), e);
             record.setStatus("FAILED");

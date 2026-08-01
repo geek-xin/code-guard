@@ -14,6 +14,21 @@ import lombok.NoArgsConstructor;
 @AllArgsConstructor
 public class Settings {
     private Agent agent;
+    private Smtp smtp;
+
+    @Data
+    @Builder
+    @NoArgsConstructor
+    @AllArgsConstructor
+    public static class Smtp {
+        private Boolean enabled;
+        private String host;
+        private Integer port;
+        private String username;
+        private String password;
+        private String from;
+        private Boolean ssl;
+    }
 
     @Data
     @Builder

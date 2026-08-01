@@ -7,6 +7,7 @@ import lombok.Data;
 import lombok.NoArgsConstructor;
 
 import java.time.Instant;
+import java.util.List;
 import java.util.Map;
 
 @Data
@@ -32,6 +33,10 @@ public class Project {
     /** 定时扫描 cron，如 0 0 2 * * ? */
     private String scheduleCron;
     private boolean scheduleEnabled;
+    /** 扫描完成后是否邮件推送报告 */
+    private boolean emailNotify;
+    /** 报告接收邮箱（多个） */
+    private List<String> emails;
     private boolean enabled;
     /** 代码就绪状态：READY / SYNCING / ERROR */
     private String syncStatus;

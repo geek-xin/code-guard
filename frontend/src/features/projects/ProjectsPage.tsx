@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
-import { Plus, RefreshCw, ScanSearch, Pencil, Trash2, FolderGit2, Github, Gitlab, FolderOpen, Clock } from 'lucide-react';
+import { Plus, RefreshCw, ScanSearch, Pencil, Trash2, FolderGit2, Github, Gitlab, FolderOpen, Clock, Mail } from 'lucide-react';
 import { api, Project } from '@/lib/api';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -188,6 +188,9 @@ function ProjectCard({ project, busy, onScan, onSync, onEdit, onDelete }: {
           ) : project.lastScanStatus === 'FAILED' ? <Badge variant="danger">扫描失败</Badge> : null}
           {project.scheduleEnabled && (
             <Badge variant="outline"><Clock className="h-3 w-3" /> {project.scheduleCron}</Badge>
+          )}
+          {project.emailNotify && (
+            <Badge variant="outline"><Mail className="h-3 w-3" /> 邮件报告</Badge>
           )}
         </div>
 
