@@ -22,6 +22,7 @@ export default function LoginPage() {
         ? await api.login(username, password, remember)
         : await api.register(username, password, displayName, remember);
       setToken(res.token);
+      window.dispatchEvent(new Event('cg_auth'));
       window.location.hash = '#/dashboard';
       toast.success(mode === 'login' ? '登录成功' : '注册成功');
     } catch (err: any) {

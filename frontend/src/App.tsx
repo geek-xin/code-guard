@@ -32,7 +32,12 @@ function useHashRoute() {
 
 export default function App() {
   const hash = useHashRoute();
-  const authed = !!token();
+  const [authed, setAuthed] = useState(() => !!token());
+  useEffect(() => {
+    const onAuth = () => setAuthed(!!token());
+    window.addEventListener('cg_auth', onAuth);
+    return () => window.removeEventListener('cg_auth', onAuth);
+  }, []);
 
   if (!authed) {
     return (

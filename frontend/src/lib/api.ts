@@ -27,6 +27,7 @@ async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
   const resp = await fetch(`${BASE}${path}`, { ...options, headers });
   if (resp.status === 401) {
     setToken(null);
+    window.dispatchEvent(new Event('cg_auth'));
     window.location.hash = '#/login';
     throw new ApiError('401', '登录已过期');
   }

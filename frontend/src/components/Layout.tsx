@@ -74,6 +74,7 @@ export default function Layout({ children, current }: { children: React.ReactNod
                 onClick={() => {
                   api.logout().catch(() => {});
                   setToken(null);
+                  window.dispatchEvent(new Event('cg_auth'));
                   window.location.hash = '#/login';
                 }}
               >
