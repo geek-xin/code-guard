@@ -23,7 +23,12 @@ import java.util.ArrayList;
 import java.util.HexFormat;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Semaphore;
+import java.util.concurrent.TimeUnit;
 
 /**
  * OSV.dev 在线漏洞查询客户端（带本地缓存）。
@@ -39,11 +44,38 @@ public class OsvClient {
     private final JsonStore jsonStore;
     private final HttpClient http;
     private final Map<String, List<Vulnerability>> memoryCache = new ConcurrentHashMap<>();
+    private final Map<String, CompletableFuture<List<Vulnerability>>> inflight = new ConcurrentHashMap<>();
+    private final Semaphore limiter;
+    private final ExecutorService pool;
 
     public OsvClient(CodeGuardProperties props, JsonStore jsonStore) {
         this.props = props;
         this.jsonStore = jsonStore;
         this.http = HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(5)).build();
+        int concurrency = Math.max(1, props.getScaOsvConcurrency());
+        this.limiter = new Semaphore(concurrency);
+        this.pool = Executors.newFixedThreadPool(concurrency, r -> {
+            Thread t = new Thread(r, "osv-query-" + System.nanoTime());
+            t.setDaemon(true);
+            return t;
+        });
+    }
+
+    /** 异步查询：相同包+版本只发一次网络请求（in-flight 合并），限流并发数 */
+    public CompletableFuture<List<Vulnerability>> queryAsync(String ecosystem, String name, String version) {
+        if (!props.getSca().isOsvEnabled()) {
+            return CompletableFuture.completedFuture(List.of());
+        }
+        String cacheKey = key(ecosystem, name, version);
+        if (memoryCache.containsKey(cacheKey)) {
+            return CompletableFuture.completedFuture(memoryCache.get(cacheKey));
+        }
+        CompletableFuture<List<Vulnerability>> existing = inflight.putIfAbsent(cacheKey,
+                CompletableFuture.supplyAsync(() -> doQuery(cacheKey, ecosystem, name, version), pool));
+        if (existing != null) {
+            return existing;
+        }
+        return inflight.get(cacheKey).whenComplete((r, e) -> inflight.remove(cacheKey));
     }
 
     /** 查询某个包的全部已知漏洞（用于漏洞库更新），无缓存 */
@@ -72,10 +104,15 @@ public class OsvClient {
     }
 
     public List<Vulnerability> query(String ecosystem, String name, String version) {
-        if (!props.getSca().isOsvEnabled()) {
+        try {
+            return queryAsync(ecosystem, name, version).get(props.getSca().getOsvTimeoutMs() + 3000, TimeUnit.MILLISECONDS);
+        } catch (Exception e) {
+            log.debug("OSV 查询失败 {}: {}", name, e.getMessage());
             return List.of();
         }
-        String cacheKey = key(ecosystem, name, version);
+    }
+
+    private List<Vulnerability> doQuery(String cacheKey, String ecosystem, String name, String version) {
         if (memoryCache.containsKey(cacheKey)) {
             return memoryCache.get(cacheKey);
         }
@@ -86,24 +123,32 @@ public class OsvClient {
             return fromCache;
         }
         try {
-            String payload = jsonStore.mapper().writeValueAsString(Map.of(
-                    "package", Map.of("name", name, "ecosystem", ecosystem),
-                    "version", version));
-            HttpRequest req = HttpRequest.newBuilder(URI.create(OSV_QUERY_URL))
-                    .header("Content-Type", "application/json")
-                    .timeout(Duration.ofMillis(props.getSca().getOsvTimeoutMs()))
-                    .POST(HttpRequest.BodyPublishers.ofString(payload))
-                    .build();
-            HttpResponse<String> resp = http.send(req, HttpResponse.BodyHandlers.ofString());
-            if (resp.statusCode() != 200) {
-                log.warn("OSV 查询失败 {}: HTTP {}", name, resp.statusCode());
-                memoryCache.put(cacheKey, List.of());
+            if (!limiter.tryAcquire(props.getSca().getOsvTimeoutMs(), TimeUnit.MILLISECONDS)) {
+                log.debug("OSV 并发限流超时: {}", name);
                 return List.of();
             }
-            List<Vulnerability> vulns = parse(resp.body());
-            writeCache(cacheFile, vulns);
-            memoryCache.put(cacheKey, vulns);
-            return vulns;
+            try {
+                String payload = jsonStore.mapper().writeValueAsString(Map.of(
+                        "package", Map.of("name", name, "ecosystem", ecosystem),
+                        "version", version));
+                HttpRequest req = HttpRequest.newBuilder(URI.create(OSV_QUERY_URL))
+                        .header("Content-Type", "application/json")
+                        .timeout(Duration.ofMillis(props.getSca().getOsvTimeoutMs()))
+                        .POST(HttpRequest.BodyPublishers.ofString(payload))
+                        .build();
+                HttpResponse<String> resp = http.send(req, HttpResponse.BodyHandlers.ofString());
+                if (resp.statusCode() != 200) {
+                    log.warn("OSV 查询失败 {}: HTTP {}", name, resp.statusCode());
+                    memoryCache.put(cacheKey, List.of());
+                    return List.of();
+                }
+                List<Vulnerability> vulns = parse(resp.body());
+                writeCache(cacheFile, vulns);
+                memoryCache.put(cacheKey, vulns);
+                return vulns;
+            } finally {
+                limiter.release();
+            }
         } catch (BusinessException e) {
             throw e;
         } catch (Exception e) {

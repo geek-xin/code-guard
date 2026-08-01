@@ -57,7 +57,16 @@ public class ScaService {
             if (deps.isEmpty()) {
                 continue;
             }
+            // 本地库查询（快）同步执行
             for (Dependency dep : deps) {
+                if (isUnresolvedVersion(dep.getVersion())) {
+                    ScanFinding f = unresolvedVersionFinding(dep, root, projectId, scanId);
+                    if (seen.add("unresolved|" + dep.getName())) {
+                        findings.add(f);
+                        listener.onFinding(f);
+                    }
+                    continue;
+                }
                 List<Vulnerability> localHits = dbService.lookup(dep.getEcosystem(), dep.getName(), dep.getVersion());
                 for (Vulnerability v : localHits) {
                     ScanFinding f = toFinding(v, dep, root, projectId, scanId);
@@ -66,10 +75,21 @@ public class ScaService {
                         listener.onFinding(f);
                     }
                 }
-                if (props.getSca().isOsvEnabled()) {
+            }
+            // OSV 在线查询（慢）并行执行，in-flight 去重 + 并发限流
+            List<Dependency> queryable = deps.stream()
+                    .filter(dep -> !isUnresolvedVersion(dep.getVersion()))
+                    .toList();
+            if (props.getSca().isOsvEnabled() && !queryable.isEmpty()) {
+                List<java.util.concurrent.CompletableFuture<List<Vulnerability>>> futures = queryable.stream()
+                        .map(dep -> osvClient.queryAsync(dep.getEcosystem(), dep.getName(), dep.getVersion()))
+                        .toList();
+                java.util.concurrent.CompletableFuture.allOf(futures.toArray(new java.util.concurrent.CompletableFuture[0]))
+                        .join();
+                for (int i = 0; i < queryable.size(); i++) {
+                    Dependency dep = queryable.get(i);
                     try {
-                        List<Vulnerability> osvHits = osvClient.query(dep.getEcosystem(), dep.getName(), dep.getVersion());
-                        for (Vulnerability v : osvHits) {
+                        for (Vulnerability v : futures.get(i).get()) {
                             ScanFinding f = toFinding(v, dep, root, projectId, scanId);
                             if (seen.add(f.getVulnId() + "|" + dep.getName())) {
                                 findings.add(f);
@@ -155,6 +175,32 @@ public class ScaService {
 
     private int compareVersions(String a, String b) {
         return new VersionRangeMatcher().compare(a, b);
+    }
+
+    private boolean isUnresolvedVersion(String version) {
+        return version == null || version.isBlank() || "*".equals(version.trim());
+    }
+
+    private ScanFinding unresolvedVersionFinding(Dependency dep, Path root, String projectId, String scanId) {
+        return ScanFinding.builder()
+                .id(UUID.randomUUID().toString())
+                .scanId(scanId)
+                .projectId(projectId)
+                .engine("SCA")
+                .category("unresolved-version")
+                .severity("INFO")
+                .title("依赖版本未锁定，无法进行 SCA 比对: " + dep.getName())
+                .description("依赖 " + dep.getName() + " 在 " + dep.getManifest() + " 中未声明具体版本（或使用了通配符）。"
+                        + "为避免误报，已跳过该依赖的漏洞匹配。建议锁定精确版本以便进行软件成分分析。")
+                .file(dep.getManifest())
+                .dependencyName(dep.getName())
+                .dependencyVersion(dep.getVersion())
+                .ecosystem(dep.getEcosystem())
+                .solution("在构建文件中为该依赖声明固定版本；Maven 项目请使用 dependencyManagement 或明确 version 标签。")
+                .confidence(100)
+                .cwe("SCA")
+                .createdAt(System.currentTimeMillis())
+                .build();
     }
 
     private String normalize(String sev) {

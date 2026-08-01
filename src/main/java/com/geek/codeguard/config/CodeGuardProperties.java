@@ -16,7 +16,10 @@ public class CodeGuardProperties {
     private String workspaceDir = "./config/workspace";
     private String tokenSecret = "codeguard-dev-secret";
     private long tokenTtlHours = 72;
+    private long tokenRememberHours = 720;
     private int scanConcurrency = 4;
+    private int sastThreads = 4;
+    private int scaOsvConcurrency = 6;
     private int maxFileKb = 2048;
     private List<String> ignorePatterns = new ArrayList<>();
     private Auth auth = new Auth();

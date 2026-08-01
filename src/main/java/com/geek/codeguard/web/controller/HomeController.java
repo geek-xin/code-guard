@@ -2,6 +2,7 @@ package com.geek.codeguard.web.controller;
 
 import org.springframework.core.io.ClassPathResource;
 import org.springframework.core.io.Resource;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -16,8 +17,12 @@ public class HomeController {
 
     @GetMapping({"/", "/admin", "/admin/**"})
     public Mono<ResponseEntity<Resource>> index() {
-        return Mono.just(ResponseEntity.ok()
-                .contentType(MediaType.TEXT_HTML)
-                .body(new ClassPathResource("static/admin/index.html")));
+        ClassPathResource resource = new ClassPathResource("static/admin/index.html");
+        if (!resource.exists()) {
+            return Mono.just(ResponseEntity.status(HttpStatus.NOT_FOUND)
+                    .contentType(MediaType.TEXT_PLAIN)
+                    .body(new ClassPathResource("static/404.txt")));
+        }
+        return Mono.just(ResponseEntity.ok().contentType(MediaType.TEXT_HTML).body(resource));
     }
 }

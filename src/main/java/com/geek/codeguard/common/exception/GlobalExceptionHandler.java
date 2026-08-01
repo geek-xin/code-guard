@@ -45,6 +45,12 @@ public class GlobalExceptionHandler {
         return ResponseEntity.badRequest().body(Result.failure(ErrorCodeEnum.BAD_REQUEST.getCode(), e.getReason() == null ? "请求体解析失败" : e.getReason()));
     }
 
+    @ExceptionHandler(org.springframework.web.reactive.resource.NoResourceFoundException.class)
+    public ResponseEntity<Result<Void>> handleNoResource(org.springframework.web.reactive.resource.NoResourceFoundException e) {
+        return ResponseEntity.status(HttpStatus.NOT_FOUND)
+                .body(Result.failure(ErrorCodeEnum.NOT_FOUND.getCode(), "资源不存在: " + e.getMessage()));
+    }
+
     @ExceptionHandler(Throwable.class)
     public ResponseEntity<Result<Void>> handleOther(Throwable e) {
         log.error("Unhandled exception", e);

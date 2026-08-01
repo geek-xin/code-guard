@@ -12,11 +12,11 @@
     </parent>
 
     <groupId>com.geek</groupId>
-    <artifactId>codeguard</artifactId>
+    <artifactId>code-guard</artifactId>
     <version>0.1.0</version>
     <packaging>jar</packaging>
-    <name>codeguard</name>
-    <description>CodeGuard - SAST + SCA + Code Review Agent 代码安全分析平台</description>
+    <name>code-guard</name>
+    <description>code-guard - SAST + SCA + Code Review Agent 代码安全分析平台</description>
 
     <properties>
         <java.version>21</java.version>
@@ -68,6 +68,11 @@
             <version>${jgit.version}</version>
         </dependency>
         <dependency>
+            <groupId>com.github.librepdf</groupId>
+            <artifactId>openpdf</artifactId>
+            <version>1.3.43</version>
+        </dependency>
+        <dependency>
             <groupId>org.projectlombok</groupId>
             <artifactId>lombok</artifactId>
             <optional>true</optional>
@@ -85,7 +90,6 @@
     </dependencies>
 
     <build>
-        <finalName>codeguard</finalName>
         <plugins>
             <plugin>
                 <groupId>org.springframework.boot</groupId>

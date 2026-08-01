@@ -31,7 +31,16 @@ public class TokenService {
     }
 
     public String issue(User user) {
-        long exp = Instant.now().getEpochSecond() + props.getTokenTtlHours() * 3600;
+        return issue(user, props.getTokenTtlHours());
+    }
+
+    /** remember=true 时使用更长的有效期 */
+    public String issue(User user, boolean remember) {
+        return issue(user, remember ? props.getTokenRememberHours() : props.getTokenTtlHours());
+    }
+
+    public String issue(User user, long ttlHours) {
+        long exp = Instant.now().getEpochSecond() + ttlHours * 3600;
         String payload = Base64.getUrlEncoder().withoutPadding()
                 .encodeToString(("{\"uid\":\"" + user.getId() + "\",\"exp\":" + exp + "}").getBytes(StandardCharsets.UTF_8));
         return payload + "." + sign(payload);

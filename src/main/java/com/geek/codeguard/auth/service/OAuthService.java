@@ -17,6 +17,7 @@ import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
+import java.util.Base64;
 import java.util.Map;
 import java.util.UUID;
 import java.util.stream.Collectors;
@@ -35,25 +36,49 @@ public class OAuthService {
         this.http = HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(10)).build();
     }
 
-    public String githubAuthorizeUrl() {
+    public String githubAuthorizeUrl(boolean remember) {
         CodeGuardProperties.Auth.OAuth cfg = props.getAuth().getGithub();
         return "https://github.com/login/oauth/authorize?" + query(Map.of(
                 "client_id", cfg.getClientId(),
                 "redirect_uri", cfg.getRedirectUri(),
                 "scope", "read:user repo",
-                "state", UUID.randomUUID().toString()
+                "state", buildState(remember)
         ));
     }
 
-    public String gitlabAuthorizeUrl() {
+    public String gitlabAuthorizeUrl(boolean remember) {
         CodeGuardProperties.Auth.OAuth cfg = props.getAuth().getGitlab();
         return cfg.getBaseUrl() + "/oauth/authorize?" + query(Map.of(
                 "client_id", cfg.getClientId(),
                 "redirect_uri", cfg.getRedirectUri(),
                 "response_type", "code",
                 "scope", "read_api api",
-                "state", UUID.randomUUID().toString()
+                "state", buildState(remember)
         ));
+    }
+
+    /** state = base64url({"r":0/1,"n":nonce})，回调时还原 remember 偏好 */
+    private String buildState(boolean remember) {
+        try {
+            String payload = "{\"r\":" + (remember ? 1 : 0) + ",\"n\":\"" + UUID.randomUUID() + "\"}";
+            return Base64.getUrlEncoder().withoutPadding()
+                    .encodeToString(payload.getBytes(java.nio.charset.StandardCharsets.UTF_8));
+        } catch (Exception e) {
+            return UUID.randomUUID().toString();
+        }
+    }
+
+    public boolean parseRemember(String state) {
+        if (state == null || state.isBlank()) {
+            return false;
+        }
+        try {
+            byte[] raw = Base64.getUrlDecoder().decode(state);
+            JsonNode node = mapper.readTree(raw);
+            return node.path("r").asInt(0) == 1;
+        } catch (Exception e) {
+            return false;
+        }
     }
 
     /** 用授权码换取用户信息并返回 OAuth 用户实体 */

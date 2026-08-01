@@ -1,5 +1,6 @@
 package com.geek.codeguard.project.model;
 
+import com.fasterxml.jackson.annotation.JsonProperty;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
@@ -24,7 +25,8 @@ public class Project {
     private String branch;
     /** 本地目录（LOCAL 时必填） */
     private String localPath;
-    /** 访问令牌（Git 拉取用），保存时脱敏展示 */
+    /** 访问令牌（Git 拉取用），可写入但不出现在响应中 */
+    @JsonProperty(access = JsonProperty.Access.WRITE_ONLY)
     private String token;
     private boolean tokenConfigured;
     /** 定时扫描 cron，如 0 0 2 * * ? */

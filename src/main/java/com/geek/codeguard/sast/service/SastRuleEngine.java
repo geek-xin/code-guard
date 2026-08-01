@@ -20,6 +20,11 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -45,11 +50,23 @@ public class SastRuleEngine {
     private final CodeGuardProperties props;
     private final ProjectFileScanner fileScanner;
     private final Map<String, List<CompiledRule>> rulesByLanguage = new HashMap<>();
+    private final ExecutorService parallelPool;
 
     public SastRuleEngine(JsonStore jsonStore, CodeGuardProperties props, ProjectFileScanner fileScanner) {
         this.jsonStore = jsonStore;
         this.props = props;
         this.fileScanner = fileScanner;
+        int threads = Math.max(2, props.getSastThreads());
+        this.parallelPool = Executors.newFixedThreadPool(threads, r -> {
+            Thread t = new Thread(r, "sast-scan-" + System.nanoTime());
+            t.setDaemon(true);
+            return t;
+        });
+    }
+
+    @jakarta.annotation.PreDestroy
+    public void shutdown() {
+        parallelPool.shutdownNow();
     }
 
     @PostConstruct
@@ -89,75 +106,93 @@ public class SastRuleEngine {
 
     public List<ScanFinding> scan(Path root, String projectId, String scanId, ScanProgressListener listener) {
         List<Path> files = fileScanner.listFiles(root);
-        listener.onStage("SAST", "RUNNING", "待分析文件 " + files.size() + " 个");
-        List<ScanFinding> findings = new ArrayList<>();
+        listener.onStage("SAST", "RUNNING", "待分析文件 " + files.size() + " 个（并行 " + parallelPool.getClass().getSimpleName() + "）");
         int total = files.size();
-        int idx = 0;
-        int maxKb = props.getMaxFileKb();
-
-        for (Path file : files) {
-            idx++;
-            String lang = languageOf(file);
-            if (lang == null) {
-                listener.onProgress("SAST", idx, total, fileScanner.relative(root, file));
-                continue;
-            }
-            listener.onProgress("SAST", idx, total, fileScanner.relative(root, file));
-            List<CompiledRule> rules = rulesByLanguage.getOrDefault(lang, List.of());
-            if (rules.isEmpty()) {
-                continue;
-            }
-            String content;
-            try {
-                if (Files.size(file) > maxKb * 1024L) {
-                    continue;
+        if (total == 0) {
+            listener.onStage("SAST", "COMPLETED", "SAST 完成，无待分析文件");
+            return List.of();
+        }
+        int threads = Math.max(2, props.getSastThreads());
+        int chunkSize = Math.max(1, (int) Math.ceil((double) total / threads));
+        List<List<Path>> chunks = new ArrayList<>();
+        for (int i = 0; i < total; i += chunkSize) {
+            chunks.add(files.subList(i, Math.min(total, i + chunkSize)));
+        }
+        java.util.concurrent.ConcurrentLinkedQueue<ScanFinding> allFindings = new java.util.concurrent.ConcurrentLinkedQueue<>();
+        AtomicInteger doneCount = new AtomicInteger();
+        List<CompletableFuture<Void>> futures = new ArrayList<>();
+        for (List<Path> chunk : chunks) {
+            futures.add(CompletableFuture.runAsync(() -> {
+                for (Path file : chunk) {
+                    int done = doneCount.incrementAndGet();
+                    listener.onProgress("SAST", done, total, fileScanner.relative(root, file));
+                    scanFile(root, file, projectId, scanId, listener, allFindings);
                 }
-                content = Files.readString(file, StandardCharsets.UTF_8);
-            } catch (Exception e) {
-                continue;
+            }, parallelPool));
+        }
+        CompletableFuture.allOf(futures.toArray(new CompletableFuture[0])).join();
+        listener.onStage("SAST", "COMPLETED", "SAST 完成，发现 " + allFindings.size() + " 个问题");
+        return new ArrayList<>(allFindings);
+    }
+
+    private void scanFile(Path root, Path file, String projectId, String scanId,
+                          ScanProgressListener listener, java.util.concurrent.ConcurrentLinkedQueue<ScanFinding> out) {
+        String lang = languageOf(file);
+        if (lang == null) {
+            return;
+        }
+        List<CompiledRule> rules = rulesByLanguage.getOrDefault(lang, List.of());
+        if (rules.isEmpty()) {
+            return;
+        }
+        String content;
+        try {
+            if (Files.size(file) > (long) props.getMaxFileKb() * 1024L) {
+                return;
             }
-            int[] lineOffsets = lineOffsets(content);
-            String rel = fileScanner.relative(root, file);
-            for (CompiledRule rule : rules) {
-                SastRule r = rule.rule();
-                for (CompiledPattern cp : rule.patterns()) {
-                    Matcher m = cp.pattern().matcher(content);
-                    int count = 0;
-                    int max = cp.maxMatches();
-                    while (m.find()) {
-                        if (count >= max) {
-                            break;
-                        }
-                        count++;
-                        int line = lineAt(lineOffsets, m.start());
-                        String snippet = snippetAt(content, lineOffsets, line);
-                        ScanFinding f = ScanFinding.builder()
-                                .id(UUID.randomUUID().toString())
-                                .scanId(scanId)
-                                .projectId(projectId)
-                                .engine("SAST")
-                                .category(r.getCategory())
-                                .severity(r.getSeverity())
-                                .title(r.getName())
-                                .description(r.getMessage() + " " + (cp.description() == null ? "" : "（" + cp.description() + "）"))
-                                .file(rel)
-                                .line(line)
-                                .codeSnippet(snippet)
-                                .vulnId(r.getId())
-                                .solution(r.getRemediation())
-                                .references(r.getReferences() == null ? List.of() : r.getReferences())
-                                .confidence(cp.confidence())
-                                .cwe(r.getCwe())
-                                .createdAt(System.currentTimeMillis())
-                                .build();
-                        findings.add(f);
-                        listener.onFinding(f);
+            content = Files.readString(file, StandardCharsets.UTF_8);
+        } catch (Exception e) {
+            return;
+        }
+        int[] lineOffsets = lineOffsets(content);
+        String rel = fileScanner.relative(root, file);
+        for (CompiledRule rule : rules) {
+            SastRule r = rule.rule();
+            for (CompiledPattern cp : rule.patterns()) {
+                Matcher m = cp.pattern().matcher(content);
+                int count = 0;
+                int max = cp.maxMatches();
+                while (m.find()) {
+                    if (count >= max) {
+                        break;
                     }
+                    count++;
+                    int line = lineAt(lineOffsets, m.start());
+                    String snippet = snippetAt(content, lineOffsets, line);
+                    ScanFinding f = ScanFinding.builder()
+                            .id(UUID.randomUUID().toString())
+                            .scanId(scanId)
+                            .projectId(projectId)
+                            .engine("SAST")
+                            .category(r.getCategory())
+                            .severity(r.getSeverity())
+                            .title(r.getName())
+                            .description(r.getMessage() + " " + (cp.description() == null ? "" : "（" + cp.description() + "）"))
+                            .file(rel)
+                            .line(line)
+                            .codeSnippet(snippet)
+                            .vulnId(r.getId())
+                            .solution(r.getRemediation())
+                            .references(r.getReferences() == null ? List.of() : r.getReferences())
+                            .confidence(cp.confidence())
+                            .cwe(r.getCwe())
+                            .createdAt(System.currentTimeMillis())
+                            .build();
+                    out.add(f);
+                    listener.onFinding(f);
                 }
             }
         }
-        listener.onStage("SAST", "COMPLETED", "SAST 完成，发现 " + findings.size() + " 个问题");
-        return findings;
     }
 
     private String languageOf(Path file) {

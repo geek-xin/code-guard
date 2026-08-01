@@ -44,6 +44,8 @@ public class AuthController {
         private String username;
         @NotBlank(message = "密码不能为空")
         private String password;
+        /** 记住登录（30 天） */
+        private boolean remember;
     }
 
     @Data
@@ -55,13 +57,14 @@ public class AuthController {
         @Size(min = 6, max = 64, message = "密码长度需在 6-64 之间")
         private String password;
         private String displayName;
+        private boolean remember;
     }
 
     @PostMapping("/register")
     public Mono<Result<Map<String, Object>>> register(@Valid @RequestBody RegisterRequest req) {
         return Mono.fromCallable(() -> {
             User user = userStore.createLocal(req.getUsername().trim(), req.getPassword(), req.getDisplayName());
-            String token = tokenService.issue(user);
+            String token = tokenService.issue(user, req.isRemember());
             return Result.success(Map.of("token", token, "user", SessionUser.from(user)));
         });
     }
@@ -70,7 +73,7 @@ public class AuthController {
     public Mono<Result<Map<String, Object>>> login(@Valid @RequestBody LoginRequest req) {
         return Mono.fromCallable(() -> {
             User user = userStore.verifyLocal(req.getUsername().trim(), req.getPassword());
-            String token = tokenService.issue(user);
+            String token = tokenService.issue(user, req.isRemember());
             return Result.success(Map.of("token", token, "user", SessionUser.from(user)));
         });
     }
@@ -88,37 +91,39 @@ public class AuthController {
     }
 
     @GetMapping("/github/authorize")
-    public Mono<Result<Map<String, String>>> githubAuthorize() {
-        String url = oauthService.githubAuthorizeUrl();
+    public Mono<Result<Map<String, String>>> githubAuthorize(@RequestParam(defaultValue = "false") boolean remember) {
+        String url = oauthService.githubAuthorizeUrl(remember);
         return Mono.just(Result.success(Map.of("url", url)));
     }
 
     @GetMapping("/gitlab/authorize")
-    public Mono<Result<Map<String, String>>> gitlabAuthorize() {
-        String url = oauthService.gitlabAuthorizeUrl();
+    public Mono<Result<Map<String, String>>> gitlabAuthorize(@RequestParam(defaultValue = "false") boolean remember) {
+        String url = oauthService.gitlabAuthorizeUrl(remember);
         return Mono.just(Result.success(Map.of("url", url)));
     }
 
     @GetMapping("/github/callback")
-    public Mono<ResponseEntity<Void>> githubCallback(@RequestParam String code) {
+    public Mono<ResponseEntity<Void>> githubCallback(@RequestParam String code, @RequestParam(required = false) String state) {
         return Mono.fromCallable(() -> {
             User user = oauthService.exchangeGithub(code);
             User saved = userStore.upsertOAuth(user);
-            String token = tokenService.issue(saved);
+            boolean remember = oauthService.parseRemember(state);
+            String token = tokenService.issue(saved, remember);
             return ResponseEntity.status(HttpStatus.FOUND)
-                    .location(URI.create("/#/auth/callback?token=" + token))
+                    .location(URI.create("/#/auth/callback?token=" + token + "&remember=" + remember))
                     .build();
         });
     }
 
     @GetMapping("/gitlab/callback")
-    public Mono<ResponseEntity<Void>> gitlabCallback(@RequestParam String code) {
+    public Mono<ResponseEntity<Void>> gitlabCallback(@RequestParam String code, @RequestParam(required = false) String state) {
         return Mono.fromCallable(() -> {
             User user = oauthService.exchangeGitlab(code);
             User saved = userStore.upsertOAuth(user);
-            String token = tokenService.issue(saved);
+            boolean remember = oauthService.parseRemember(state);
+            String token = tokenService.issue(saved, remember);
             return ResponseEntity.status(HttpStatus.FOUND)
-                    .location(URI.create("/#/auth/callback?token=" + token))
+                    .location(URI.create("/#/auth/callback?token=" + token + "&remember=" + remember))
                     .build();
         });
     }

@@ -46,6 +46,7 @@ public class ScanService implements ScanProgressListener {
     private final ScaService scaService;
     private final SastRuleEngine sastRuleEngine;
     private final ReviewAgentService reviewAgentService;
+    private final ProjectFileScanner fileScanner;
     private final CodeGuardProperties props;
 
     private final ExecutorService executor;
@@ -55,14 +56,20 @@ public class ScanService implements ScanProgressListener {
 
     public ScanService(JsonStore jsonStore, ProjectService projectService, ScaService scaService,
                        SastRuleEngine sastRuleEngine, ReviewAgentService reviewAgentService,
-                       CodeGuardProperties props) {
+                       ProjectFileScanner fileScanner, CodeGuardProperties props) {
         this.jsonStore = jsonStore;
         this.projectService = projectService;
         this.scaService = scaService;
         this.sastRuleEngine = sastRuleEngine;
         this.reviewAgentService = reviewAgentService;
+        this.fileScanner = fileScanner;
         this.props = props;
-        this.executor = Executors.newFixedThreadPool(Math.max(2, props.getScanConcurrency()));
+        int concurrency = Math.max(1, props.getScanConcurrency());
+        this.executor = Executors.newFixedThreadPool(concurrency, r -> {
+            Thread t = new Thread(r, "scan-worker-" + System.nanoTime());
+            t.setDaemon(true);
+            return t;
+        });
     }
 
     @PreDestroy
@@ -78,6 +85,12 @@ public class ScanService implements ScanProgressListener {
         if (existing != null) {
             throw new BusinessException(ErrorCodeEnum.SCAN_RUNNING, "该项目正在扫描中，请稍后再试");
         }
+        java.util.Map<String, ScanRecord.StageProgress> initialStages = new java.util.LinkedHashMap<>();
+        initialStages.put("CLONE", stage("RUNNING"));
+        initialStages.put("DETECT", stage("PENDING"));
+        initialStages.put("SCA", stage("PENDING"));
+        initialStages.put("SAST", stage("PENDING"));
+        initialStages.put("AGENT", stage("PENDING"));
         ScanRecord record = ScanRecord.builder()
                 .id(UUID.randomUUID().toString())
                 .projectId(projectId)
@@ -86,13 +99,7 @@ public class ScanService implements ScanProgressListener {
                 .scope(scope == null ? "ALL" : scope)
                 .status("RUNNING")
                 .startedAt(now())
-                .stages(Map.of(
-                        "CLONE", stage("RUNNING"),
-                        "DETECT", stage("PENDING"),
-                        "SCA", stage("PENDING"),
-                        "SAST", stage("PENDING"),
-                        "AGENT", stage("PENDING")
-                ))
+                .stages(initialStages)
                 .build();
         saveRecord(record);
         projectService.find(projectId).ifPresent(p -> {
@@ -262,8 +269,8 @@ public class ScanService implements ScanProgressListener {
     }
 
     private void updateStage(ScanRecord record, String stage, String status, String message) {
-        if (record.getStages() == null) {
-            record.setStages(new LinkedHashMap<>());
+        if (record.getStages() == null || !(record.getStages() instanceof LinkedHashMap)) {
+            record.setStages(new LinkedHashMap<>(record.getStages() == null ? Map.of() : record.getStages()));
         }
         ScanRecord.StageProgress sp = record.getStages().get(stage);
         if (sp == null) {
@@ -302,7 +309,19 @@ public class ScanService implements ScanProgressListener {
     public List<ScanRecord> listScans(String projectId) {
         Predicate<ScanRecord> filter = projectId == null || projectId.isBlank()
                 ? r -> true : r -> r.getProjectId().equals(projectId);
-        return jsonStore.readList(jsonStore.paths().scans, ScanRecord.class).stream()
+        List<ScanRecord> records = new ArrayList<>();
+        for (java.nio.file.Path f : jsonStore.listJsonFiles(jsonStore.paths().scans)) {
+            // 只读取扫描记录文件，跳过 <id>-findings.json
+            String name = f.getFileName().toString();
+            if (name.endsWith("-findings.json")) {
+                continue;
+            }
+            ScanRecord record = jsonStore.read(f, ScanRecord.class);
+            if (record != null) {
+                records.add(record);
+            }
+        }
+        return records.stream()
                 .filter(filter)
                 .sorted((a, b) -> (b.getStartedAt() == null ? "" : b.getStartedAt()).compareTo(a.getStartedAt() == null ? "" : a.getStartedAt()))
                 .toList();
@@ -406,7 +425,7 @@ public class ScanService implements ScanProgressListener {
     // ============ 环境探测 ============
 
     private Map<String, Object> detectProject(Path root) {
-        List<Path> files = new ProjectFileScanner(props).listFiles(root);
+        List<Path> files = fileScanner.listFiles(root);
         java.util.Set<String> langs = new java.util.HashSet<>();
         int manifests = 0;
         for (Path f : files) {
