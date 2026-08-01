@@ -7,6 +7,15 @@ import { Badge } from '@/components/ui/badge';
 import { formatTime } from '@/lib/utils';
 import { toast } from 'sonner';
 
+const ECOSYSTEMS = [
+  { name: 'npm', color: '#CB3837' },
+  { name: 'Maven', color: '#C71A36' },
+  { name: 'PyPI', color: '#3775A9' },
+  { name: 'Go', color: '#00ADD8' },
+  { name: 'RubyGems', color: '#E9573F' },
+  { name: 'Packagist', color: '#30A9DE' },
+];
+
 export default function VulnDbPage() {
   const [status, setStatus] = useState<VulnDbStatus | null>(null);
   const [updating, setUpdating] = useState(false);
@@ -100,9 +109,15 @@ export default function VulnDbPage() {
             <CardDescription>离线库 + OSV 在线全覆盖</CardDescription>
           </CardHeader>
           <CardContent>
-            <div className="flex flex-wrap gap-1.5">
-              {['npm', 'Maven', 'PyPI', 'Go', 'RubyGems', 'Packagist'].map((e) => (
-                <Badge key={e} variant="outline">{e}</Badge>
+            <div className="flex flex-wrap gap-2">
+              {ECOSYSTEMS.map((e) => (
+                <span
+                  key={e.name}
+                  className="inline-flex items-center rounded-full border-chunky border-ink px-3 py-1 text-xs font-black text-white shadow-chunky-sm"
+                  style={{ background: e.color }}
+                >
+                  {e.name}
+                </span>
               ))}
             </div>
             <p className="mt-3 text-xs font-semibold leading-relaxed text-ink-muted">
