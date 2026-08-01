@@ -33,7 +33,7 @@ export default function Layout({ children, current }: { children: React.ReactNod
         <nav className="flex-1 space-y-1.5 px-3 py-4">
           {NAV.map((item) => {
             const Icon = item.icon;
-            const active = current === item.key || (item.key === 'projects' && current === 'scans');
+            const active = current === item.key;
             return (
               <a
                 key={item.key}
