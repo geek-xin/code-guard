@@ -15,7 +15,7 @@ import reactor.core.publisher.Mono;
 @RestController
 public class HomeController {
 
-    @GetMapping({"/", "/admin", "/admin/**"})
+    @GetMapping({"/", "/admin", "/admin/", "/index.html"})
     public Mono<ResponseEntity<Resource>> index() {
         ClassPathResource resource = new ClassPathResource("static/admin/index.html");
         if (!resource.exists()) {
