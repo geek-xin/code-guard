@@ -1,0 +1,79 @@
+server:
+  port: 8090
+  shutdown: graceful
+
+spring:
+  application:
+    name: codeguard
+  jackson:
+    default-property-inclusion: non_null
+    time-zone: Asia/Shanghai
+    serialization:
+      write-dates-as-timestamps: false
+  webflux:
+    base-path: /
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info
+
+codeguard:
+  # 本地用户/配置的 JSON 存储根目录
+  data-dir: ${CODEGUARD_DATA_DIR:./config}
+  # 工作目录：存放克隆的代码仓库
+  workspace-dir: ${CODEGUARD_WORKSPACE:./config/workspace}
+  # 安全 token 签名密钥（生产环境请通过环境变量覆盖）
+  token-secret: ${CODEGUARD_TOKEN_SECRET:codeguard-dev-secret-change-me-2026}
+  token-ttl-hours: 72
+  # 扫描并发数
+  scan-concurrency: 4
+  # 单文件大小上限（KB），超过则跳过正文分析
+  max-file-kb: 2048
+  # 扫描时忽略的路径片段（glob）
+  ignore-patterns:
+    - "**/node_modules/**"
+    - "**/.git/**"
+    - "**/target/**"
+    - "**/dist/**"
+    - "**/build/**"
+    - "**/vendor/**"
+    - "**/.next/**"
+    - "**/__pycache__/**"
+    - "**/.venv/**"
+    - "**/*.min.js"
+    - "**/*.map"
+    - "**/package-lock.json"
+  auth:
+    github:
+      client-id: ${GITHUB_CLIENT_ID:}
+      client-secret: ${GITHUB_CLIENT_SECRET:}
+      redirect-uri: ${GITHUB_REDIRECT_URI:http://localhost:8090/api/auth/github/callback}
+    gitlab:
+      client-id: ${GITLAB_CLIENT_ID:}
+      client-secret: ${GITLAB_CLIENT_SECRET:}
+      redirect-uri: ${GITLAB_REDIRECT_URI:http://localhost:8090/api/auth/gitlab/callback}
+      base-url: ${GITLAB_BASE_URL:https://gitlab.com}
+  sca:
+    # 是否启用 OSV.dev 在线漏洞查询（网络不可用时可关闭）
+    osv-enabled: true
+    osv-timeout-ms: 8000
+    # 离线漏洞库文件（逗号分隔，JSON 数组格式）
+    db-files:
+      - "vulndb/codeguard-vulndb.json"
+  agent:
+    # Code Review Agent：可选 OpenAI 兼容接口（配置后自动启用）
+    enabled: true
+    base-url: ${CODEGUARD_AGENT_BASE_URL:https://api.openai.com/v1}
+    api-key: ${CODEGUARD_AGENT_API_KEY:}
+    model: ${CODEGUARD_AGENT_MODEL:gpt-4o-mini}
+    timeout-ms: 60000
+  scheduler:
+    # 调度器轮询间隔（毫秒）
+    poll-interval-ms: 30000
+
+logging:
+  level:
+    com.geek.codeguard: INFO
+    org.eclipse.jgit: WARN

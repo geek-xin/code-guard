@@ -1,0 +1,448 @@
+[
+  {
+    "id": "SAST-JAVA-SQL-001",
+    "name": "SQL 注入（JDBC 字符串拼接）",
+    "category": "sql-injection",
+    "severity": "CRITICAL",
+    "cwe": "CWE-89",
+    "languages": ["java"],
+    "message": "检测到通过字符串拼接构造 SQL 语句，若拼接内容包含用户输入，可导致 SQL 注入。",
+    "remediation": "使用 PreparedStatement 预编译语句和 ? 占位符传参，禁止拼接 SQL；推荐使用 MyBatis 参数绑定（#{}）或 JPA 参数化查询。",
+    "references": ["https://owasp.org/www-community/attacks/SQL_Injection", "https://cwe.mitre.org/data/definitions/89.html"],
+    "patterns": [
+      {"regex": "(createStatement|prepareStatement|executeQuery|executeUpdate|execute)\\s*\\(\\s*[\"'][^\"']*\\+", "description": "SQL 语句与变量拼接", "confidence": 80},
+      {"regex": "String\\.format\\s*\\(\\s*[\"'][^\"']*(SELECT|INSERT|UPDATE|DELETE)[^\"']*[\"']\\s*,\\s*", "description": "String.format 构造 SQL", "confidence": 75},
+      {"regex": "\"[^\"]*(SELECT|INSERT|UPDATE|DELETE)[^\"]*\"\\s*\\+\\s*[a-zA-Z_$][\\w$]*", "description": "SQL 常量与变量直接拼接", "confidence": 70}
+    ]
+  },
+  {
+    "id": "SAST-PY-SQL-001",
+    "name": "SQL 注入（Python 字符串拼接 / f-string）",
+    "category": "sql-injection",
+    "severity": "CRITICAL",
+    "cwe": "CWE-89",
+    "languages": ["python"],
+    "message": "检测到在 execute() 中使用字符串拼接或 f-string 构造 SQL，存在 SQL 注入风险。",
+    "remediation": "使用参数化查询：cursor.execute(sql, (param,)) 或使用 SQLAlchemy/ORM 的参数绑定，禁止 f-string 拼接 SQL。",
+    "references": ["https://owasp.org/www-community/attacks/SQL_Injection"],
+    "patterns": [
+      {"regex": "execute\\s*\\(\\s*f[\"'][^\"']*\\{", "description": "f-string 拼接 SQL", "confidence": 85},
+      {"regex": "execute\\s*\\(\\s*[\"'][^\"']*(SELECT|INSERT|UPDATE|DELETE)[^\"']*\\+", "description": "字符串拼接 SQL", "confidence": 80},
+      {"regex": "(SELECT|INSERT|UPDATE|DELETE)[^\"]*\"\\s*%\\s*\\(", "description": "% 格式化 SQL", "confidence": 75}
+    ]
+  },
+  {
+    "id": "SAST-JS-SQL-001",
+    "name": "SQL 注入（JavaScript 模板字符串）",
+    "category": "sql-injection",
+    "severity": "CRITICAL",
+    "cwe": "CWE-89",
+    "languages": ["javascript", "typescript"],
+    "message": "检测到在数据库查询中使用模板字符串拼接 SQL 语句，存在 SQL 注入风险。",
+    "remediation": "使用参数化查询（prepared statements），如 pg 的 $1 占位符、mysql2 的 ? 占位符，或使用 ORM 的 QueryBuilder，禁止字符串拼接。",
+    "references": ["https://owasp.org/www-community/attacks/SQL_Injection"],
+    "patterns": [
+      {"regex": "(query|execute|raw)\\s*\\(\\s*`[^`]*(SELECT|INSERT|UPDATE|DELETE)[^`]*\\$\\{", "description": "模板字符串 SQL 注入", "confidence": 85},
+      {"regex": "(query|execute)\\s*\\(\\s*[\"'][^\"']*(SELECT|INSERT|UPDATE|DELETE)[^\"']*\"\\s*\\+\\s*[a-zA-Z_$]", "description": "字符串拼接 SQL", "confidence": 75}
+    ]
+  },
+  {
+    "id": "SAST-GO-SQL-001",
+    "name": "SQL 注入（Go fmt.Sprintf 拼接查询）",
+    "category": "sql-injection",
+    "severity": "CRITICAL",
+    "cwe": "CWE-89",
+    "languages": ["go"],
+    "message": "检测到使用 fmt.Sprintf 拼接 SQL 查询语句，存在 SQL 注入风险。",
+    "remediation": "使用 database/sql 的参数占位符 ?（MySQL）或 $1（PostgreSQL），如 db.Query(sql, args...)，禁止字符串拼接。",
+    "references": ["https://owasp.org/www-community/attacks/SQL_Injection"],
+    "patterns": [
+      {"regex": "(Query|Exec|QueryRow)\\(\\s*fmt\\.Sprintf\\([\"'][^\"']*(SELECT|INSERT|UPDATE|DELETE)", "description": "fmt.Sprintf 构造 SQL", "confidence": 85},
+      {"regex": "fmt\\.Sprintf\\s*\\(\\s*[\"'][^\"']*(SELECT|INSERT|UPDATE|DELETE)[^\"']*[\"']\\s*,\\s*[a-zA-Z_]", "description": "Sprintf 拼接 SQL", "confidence": 70}
+    ]
+  },
+  {
+    "id": "SAST-PHP-SQL-001",
+    "name": "SQL 注入（PHP 字符串拼接查询）",
+    "category": "sql-injection",
+    "severity": "CRITICAL",
+    "cwe": "CWE-89",
+    "languages": ["php"],
+    "message": "检测到 PHP 中使用字符串拼接构造 SQL 查询，若拼接 $_GET/$_POST 等输入将导致 SQL 注入。",
+    "remediation": "使用 PDO 预编译语句：$stmt = $pdo->prepare($sql); $stmt->execute([$param]); 禁止拼接 SQL。",
+    "references": ["https://owasp.org/www-community/attacks/SQL_Injection"],
+    "patterns": [
+      {"regex": "(mysql_query|mysqli_query|query)\\s*\\(\\s*[\"'][^\"']*(SELECT|INSERT|UPDATE|DELETE)[^\"']*\\.", "description": "字符串拼接 SQL", "confidence": 80},
+      {"regex": "\\$\\w+\\s*=\\s*[\"'][^\"']*(SELECT|INSERT|UPDATE|DELETE)[^\"']*\"\\s*\\.\\s*\\$", "description": "变量拼接 SQL", "confidence": 70}
+    ]
+  },
+  {
+    "id": "SAST-JAVA-CMD-001",
+    "name": "命令注入（Runtime.exec / ProcessBuilder）",
+    "category": "command-injection",
+    "severity": "CRITICAL",
+    "cwe": "CWE-78",
+    "languages": ["java"],
+    "message": "检测到执行系统命令。若命令字符串中包含用户输入，可导致命令注入。",
+    "remediation": "尽量避免执行系统命令；如需执行，必须使用参数数组形式（不使用 shell）并对输入做白名单校验，禁止拼接 shell 命令。",
+    "references": ["https://owasp.org/www-community/attacks/Command_Injection"],
+    "patterns": [
+      {"regex": "Runtime\\.getRuntime\\(\\)\\.exec\\s*\\(\\s*[\"'][^\"']*\\+", "description": "exec 字符串拼接", "confidence": 80},
+      {"regex": "new\\s+ProcessBuilder\\s*\\(\\s*[\"'][^\"']*\\+", "description": "ProcessBuilder 拼接", "confidence": 75}
+    ]
+  },
+  {
+    "id": "SAST-PY-CMD-001",
+    "name": "命令注入（os.system / subprocess shell）",
+    "category": "command-injection",
+    "severity": "CRITICAL",
+    "cwe": "CWE-78",
+    "languages": ["python"],
+    "message": "检测到调用系统命令且启用 shell。若命令含用户输入，可导致命令注入。",
+    "remediation": "使用 subprocess.run(args_list) 参数列表形式并设置 shell=False；对用户输入做白名单/正则校验，禁止 f-string 拼接命令。",
+    "references": ["https://owasp.org/www-community/attacks/Command_Injection"],
+    "patterns": [
+      {"regex": "os\\.(system|popen)\\s*\\(\\s*[f\"'][^\"']*\\{", "description": "os.system f-string 注入", "confidence": 85},
+      {"regex": "os\\.system\\s*\\(\\s*[\"'][^\"']*\\+", "description": "os.system 字符串拼接", "confidence": 80},
+      {"regex": "subprocess\\.(run|Popen|call|check_call|check_output)\\s*\\([^)]*shell\\s*=\\s*True", "description": "subprocess 开启 shell", "confidence": 85},
+      {"regex": "subprocess\\.(run|Popen|call|check_output)\\s*\\(\\s*f[\"'][^\"']*\\{", "description": "subprocess f-string 命令", "confidence": 75}
+    ]
+  },
+  {
+    "id": "SAST-JS-CMD-001",
+    "name": "命令注入（child_process）",
+    "category": "command-injection",
+    "severity": "CRITICAL",
+    "cwe": "CWE-78",
+    "languages": ["javascript", "typescript"],
+    "message": "检测到通过 child_process 执行 shell 命令，若命令含用户输入可导致命令注入。",
+    "remediation": "使用 execFile/spawn 的参数数组形式（不经过 shell），并对输入做白名单校验；禁止把用户输入拼进 exec 命令字符串。",
+    "references": ["https://owasp.org/www-community/attacks/Command_Injection"],
+    "patterns": [
+      {"regex": "(exec|execSync|execFile|execFileSync)\\s*\\(\\s*[`\"'][^`\"']*\\$\\{", "description": "模板字符串命令", "confidence": 85},
+      {"regex": "(exec|execSync)\\s*\\(\\s*[\"'][^\"']*\\+\\s*[a-zA-Z_$]", "description": "字符串拼接命令", "confidence": 75},
+      {"regex": "(exec|execSync)\\s*\\(\\s*[\"'][^\"']*`?\\s*,\\s*\\{[^}]*shell\\s*:\\s*true", "description": "开启 shell 执行", "confidence": 80}
+    ]
+  },
+  {
+    "id": "SAST-GO-CMD-001",
+    "name": "命令注入（exec.Command）",
+    "category": "command-injection",
+    "severity": "CRITICAL",
+    "cwe": "CWE-78",
+    "languages": ["go"],
+    "message": "检测到 exec.Command 执行命令。若命令或参数拼接用户输入，可导致命令注入。",
+    "remediation": "使用 exec.Command(name, args...) 参数数组形式，禁止拼接 shell 字符串（sh -c）；对输入做白名单校验。",
+    "references": ["https://owasp.org/www-community/attacks/Command_Injection"],
+    "patterns": [
+      {"regex": "exec\\.Command\\s*\\(\\s*[\"][^\" ]*(sh|bash)[\"].*[-]c", "description": "sh -c 执行", "confidence": 80},
+      {"regex": "exec\\.Command\\s*\\(\\s*fmt\\.Sprintf", "description": "Sprintf 构造命令", "confidence": 75}
+    ]
+  },
+  {
+    "id": "SAST-PHP-CMD-001",
+    "name": "命令注入（PHP 命令执行函数）",
+    "category": "command-injection",
+    "severity": "CRITICAL",
+    "cwe": "CWE-78",
+    "languages": ["php"],
+    "message": "检测到 PHP 命令执行函数，若参数含用户输入可导致命令注入。",
+    "remediation": "尽量避免执行命令；必须执行时对输入做严格白名单校验，使用 escapeshellarg 转义参数。",
+    "references": ["https://owasp.org/www-community/attacks/Command_Injection"],
+    "patterns": [
+      {"regex": "(exec|system|passthru|shell_exec|popen)\\s*\\(\\s*[\\$\\\"']", "description": "命令执行函数调用", "confidence": 70}
+    ]
+  },
+  {
+    "id": "SAST-JS-XSS-001",
+    "name": "XSS（innerHTML / document.write）",
+    "category": "xss",
+    "severity": "HIGH",
+    "cwe": "CWE-79",
+    "languages": ["javascript", "typescript"],
+    "message": "检测到将数据写入 innerHTML/document.write。若数据来自用户输入，可导致存储型/反射型 XSS。",
+    "remediation": "使用 textContent 代替 innerHTML；如需渲染富文本使用白名单消毒库（DOMPurify）；对输出进行编码转义。",
+    "references": ["https://owasp.org/www-community/attacks/xss/", "https://cwe.mitre.org/data/definitions/79.html"],
+    "patterns": [
+      {"regex": "\\.innerHTML\\s*=\\s*[a-zA-Z_$]", "description": "innerHTML 赋值变量", "confidence": 80},
+      {"regex": "document\\.write\\s*\\(\\s*[a-zA-Z_$]", "description": "document.write 写入变量", "confidence": 75}
+    ]
+  },
+  {
+    "id": "SAST-REACT-XSS-001",
+    "name": "XSS（dangerouslySetInnerHTML）",
+    "category": "xss",
+    "severity": "HIGH",
+    "cwe": "CWE-79",
+    "languages": ["javascript", "typescript"],
+    "message": "检测到 React 中直接使用 dangerouslySetInnerHTML 渲染 HTML，若内容含用户输入可导致 XSS。",
+    "remediation": "避免使用 dangerouslySetInnerHTML；如必须使用，先用 DOMPurify 等库对 HTML 进行消毒，并确保服务端同样过滤。",
+    "references": ["https://react.dev/reference/react-dom/components/common#dangerously-setting-the-inner-html"],
+    "patterns": [
+      {"regex": "dangerouslySetInnerHTML\\s*=\\{\\{?\\s*__html", "description": "dangerouslySetInnerHTML 使用", "confidence": 85}
+    ]
+  },
+  {
+    "id": "SAST-PHP-XSS-001",
+    "name": "XSS（PHP 直接输出用户输入）",
+    "category": "xss",
+    "severity": "HIGH",
+    "cwe": "CWE-79",
+    "languages": ["php"],
+    "message": "检测到直接 echo/print 输出 $_GET/$_POST/$_REQUEST 等用户输入，存在反射型 XSS 风险。",
+    "remediation": "对输出使用 htmlspecialchars($var, ENT_QUOTES, 'UTF-8') 编码，或使用模板引擎自动转义。",
+    "references": ["https://owasp.org/www-community/attacks/xss/"],
+    "patterns": [
+      {"regex": "echo\\s+\\$_(GET|POST|REQUEST|COOKIE)", "description": "echo 输出用户输入", "confidence": 85},
+      {"regex": "print\\s+\\$_(GET|POST|REQUEST)", "description": "print 输出用户输入", "confidence": 80}
+    ]
+  },
+  {
+    "id": "SAST-JAVA-XXE-001",
+    "name": "XXE（DocumentBuilderFactory 未禁用外部实体）",
+    "category": "xxe",
+    "severity": "HIGH",
+    "cwe": "CWE-611",
+    "languages": ["java"],
+    "message": "检测到解析 XML 时未显式禁用 DTD/外部实体，存在 XXE（XML 外部实体注入）风险。",
+    "remediation": "设置 setFeature(\"http://apache.org/xml/features/disallow-doctype-decl\", true)；如必须支持 DTD，禁用外部实体：setFeature(\"http://xml.org/sax/features/external-general-entities\", false) 等。",
+    "references": ["https://owasp.org/www-community/vulnerabilities/XML_External_Entity_(XXE)_Processing"],
+    "patterns": [
+      {"regex": "DocumentBuilderFactory\\.newInstance\\(\\)", "description": "XML 解析器创建", "confidence": 60},
+      {"regex": "SAXParserFactory\\.newInstance\\(\\)", "description": "SAX 解析器创建", "confidence": 60}
+    ]
+  },
+  {
+    "id": "SAST-PY-XXE-001",
+    "name": "XXE（Python lxml / xml.etree 解析）",
+    "category": "xxe",
+    "severity": "HIGH",
+    "cwe": "CWE-611",
+    "languages": ["python"],
+    "message": "检测到解析 XML 时未禁用外部实体，存在 XXE 风险。",
+    "remediation": "使用 defusedxml 替代标准库 xml；lxml 解析时设置 resolve_entities=False、no_network=True。",
+    "references": ["https://owasp.org/www-community/vulnerabilities/XML_External_Entity_(XXE)_Processing"],
+    "patterns": [
+      {"regex": "from\\s+lxml\\s+import\\s+etree|etree\\.parse\\s*\\(", "description": "lxml 解析", "confidence": 60},
+      {"regex": "from\\s+xml\\.etree\\s+import", "description": "xml.etree 解析", "confidence": 55}
+    ]
+  },
+  {
+    "id": "SAST-JAVA-DESER-001",
+    "name": "不安全反序列化（ObjectInputStream）",
+    "category": "deserialization",
+    "severity": "CRITICAL",
+    "cwe": "CWE-502",
+    "languages": ["java"],
+    "message": "检测到 Java 原生反序列化。反序列化不可信数据可导致 RCE（如利用 ysoserial payload）。",
+    "remediation": "避免反序列化不可信数据；使用白名单过滤（ObjectInputFilter）或改用 JSON（Jackson）等安全格式；升级到 JDK 高版本并配置 JEP 290。",
+    "references": ["https://owasp.org/www-project-deserialization-cheat-sheet/"],
+    "patterns": [
+      {"regex": "new\\s+ObjectInputStream\\s*\\(", "description": "ObjectInputStream 创建", "confidence": 80},
+      {"regex": "readObject\\s*\\(|readUnshared\\s*\\(", "description": "反序列化调用", "confidence": 65}
+    ]
+  },
+  {
+    "id": "SAST-PY-DESER-001",
+    "name": "不安全反序列化（pickle / yaml.load）",
+    "category": "deserialization",
+    "severity": "CRITICAL",
+    "cwe": "CWE-502",
+    "languages": ["python"],
+    "message": "检测到 pickle/yaml.load 反序列化。处理不可信数据可导致任意代码执行。",
+    "remediation": "禁止对不可信数据使用 pickle；yaml 使用 safe_load；如需传输数据使用 JSON 等安全格式。",
+    "references": ["https://owasp.org/www-project-deserialization-cheat-sheet/"],
+    "patterns": [
+      {"regex": "pickle\\.loads?\\s*\\(", "description": "pickle 反序列化", "confidence": 80},
+      {"regex": "yaml\\.load\\s*\\((?![^)]*Loader\\s*=\\s*yaml\\.(SafeLoader|CSafeLoader))", "description": "yaml.load 非安全加载", "confidence": 75}
+    ]
+  },
+  {
+    "id": "SAST-SECRET-001",
+    "name": "硬编码密钥/口令",
+    "category": "hardcoded-secret",
+    "severity": "HIGH",
+    "cwe": "CWE-798",
+    "languages": ["java", "python", "javascript", "typescript", "go", "php", "ruby", "csharp"],
+    "message": "检测到疑似硬编码的密钥、口令或 Token。硬编码凭证易被泄露并导致未授权访问。",
+    "remediation": "将密钥迁移到环境变量或密钥管理服务（Vault、KMS、云厂商 Secret Manager）；轮换已泄露的凭证；在 git 历史中清理并旋转密钥。",
+    "references": ["https://owasp.org/www-project-top-ten/2017/A2_2017-Broken_Authentication"],
+    "patterns": [
+      {"regex": "(?i)(password|passwd|secret|api[_-]?key|apikey|access[_-]?key|token|private[_-]?key|pwd)\\s*[:=]\\s*[\"'][A-Za-z0-9_\\-!@#$%^&*]{8,}[\"']", "description": "变量赋值为疑似密钥字符串", "confidence": 70, "maxMatches": 10}
+    ]
+  },
+  {
+    "id": "SAST-JAVA-WEAKCRYPTO-001",
+    "name": "弱加密算法（MD5/SHA1/DES/ECB）",
+    "category": "weak-crypto",
+    "severity": "MEDIUM",
+    "cwe": "CWE-327",
+    "languages": ["java"],
+    "message": "检测到使用 MD5/SHA-1/DES/ECB 等弱加密算法，其碰撞或模式易被攻击。",
+    "remediation": "使用 SHA-256/SHA-3 或 BCrypt/Argon2（口令存储）；对称加密使用 AES-GCM，避免 ECB 模式。",
+    "references": ["https://cwe.mitre.org/data/definitions/327.html"],
+    "patterns": [
+      {"regex": "MessageDigest\\.getInstance\\s*\\(\"MD5\"\\)|MessageDigest\\.getInstance\\s*\\(\"SHA-?1\"\\)", "description": "MD5/SHA1 摘要", "confidence": 80},
+      {"regex": "Cipher\\.getInstance\\s*\\(\"DES|Cipher\\.getInstance\\s*\\(\"[^\"]*ECB", "description": "DES/ECB 加密", "confidence": 80}
+    ]
+  },
+  {
+    "id": "SAST-PY-WEAKCRYPTO-001",
+    "name": "弱哈希（MD5/SHA1）",
+    "category": "weak-crypto",
+    "severity": "MEDIUM",
+    "cwe": "CWE-327",
+    "languages": ["python"],
+    "message": "检测到使用 MD5/SHA-1 哈希，不应用于安全场景（口令/签名）。",
+    "remediation": "口令存储使用 bcrypt/argon2；完整性校验使用 SHA-256 及以上。",
+    "references": ["https://cwe.mitre.org/data/definitions/327.html"],
+    "patterns": [
+      {"regex": "hashlib\\.md5\\s*\\(|hashlib\\.sha1\\s*\\(", "description": "MD5/SHA1 调用", "confidence": 80}
+    ]
+  },
+  {
+    "id": "SAST-GO-WEAKCRYPTO-001",
+    "name": "弱哈希/弱加密（Go）",
+    "category": "weak-crypto",
+    "severity": "MEDIUM",
+    "cwe": "CWE-327",
+    "languages": ["go"],
+    "message": "检测到使用 crypto/md5、crypto/sha1 或 DES 弱算法。",
+    "remediation": "使用 crypto/sha256、crypto/sha512 或 argon2；加密使用 AES-GCM。",
+    "references": ["https://cwe.mitre.org/data/definitions/327.html"],
+    "patterns": [
+      {"regex": "crypto/md5|crypto/sha1|crypto/des", "description": "弱算法导入", "confidence": 75}
+    ]
+  },
+  {
+    "id": "SAST-JAVA-PATH-001",
+    "name": "路径遍历（File 拼接用户输入）",
+    "category": "path-traversal",
+    "severity": "HIGH",
+    "cwe": "CWE-22",
+    "languages": ["java"],
+    "message": "检测到根据请求参数直接构造文件路径，可导致路径遍历读取任意文件。",
+    "remediation": "对文件名做白名单校验，拒绝 .. 与绝对路径；使用 Path.normalize() 后校验是否仍在允许的根目录内。",
+    "references": ["https://owasp.org/www-community/attacks/Path_Traversal"],
+    "patterns": [
+      {"regex": "new\\s+File\\s*\\([^)]*getParameter\\s*\\(", "description": "请求参数构造 File", "confidence": 75},
+      {"regex": "Paths\\.get\\s*\\([^)]*getParameter\\s*\\(", "description": "请求参数构造 Path", "confidence": 70}
+    ]
+  },
+  {
+    "id": "SAST-PY-SSRF-001",
+    "name": "SSRF（requests 请求用户输入 URL）",
+    "category": "ssrf",
+    "severity": "HIGH",
+    "cwe": "CWE-918",
+    "languages": ["python"],
+    "message": "检测到使用用户输入作为请求 URL，可导致 SSRF（服务端请求伪造），访问内网资源。",
+    "remediation": "对 URL 做协议白名单（仅 http/https）与域名白名单；解析后校验 IP 不在内网段（127.0.0.0/8、10.0.0.0/8、169.254.0.0/16 等）；禁止跟随重定向到内网。",
+    "references": ["https://owasp.org/www-community/attacks/Server_Side_Request_Forgery"],
+    "patterns": [
+      {"regex": "requests\\.(get|post|put|delete|request)\\s*\\(\\s*[a-zA-Z_]", "description": "requests 请求变量 URL", "confidence": 55}
+    ]
+  },
+  {
+    "id": "SAST-EVAL-001",
+    "name": "动态代码执行（eval / exec / Function）",
+    "category": "code-execution",
+    "severity": "HIGH",
+    "cwe": "CWE-95",
+    "languages": ["javascript", "typescript", "python", "php"],
+    "message": "检测到动态代码执行（eval/exec/Function）。若执行内容包含用户输入，可导致任意代码执行（RCE）。",
+    "remediation": "避免使用 eval/exec 执行动态代码；如必须，使用 JSON.parse 等安全解析，并对输入做严格白名单。",
+    "references": ["https://cwe.mitre.org/data/definitions/95.html"],
+    "patterns": [
+      {"regex": "eval\\s*\\(|new\\s+Function\\s*\\(|exec\\s*\\(\\s*f[\"']", "description": "动态代码执行", "confidence": 80}
+    ]
+  },
+  {
+    "id": "SAST-JS-REGEXDOS-001",
+    "name": "正则拒绝服务（用户输入构造正则）",
+    "category": "regex-dos",
+    "severity": "MEDIUM",
+    "cwe": "CWE-1333",
+    "languages": ["javascript", "typescript"],
+    "message": "检测到用用户输入构造正则表达式，恶意模式可导致 ReDoS 拒绝服务。",
+    "remediation": "禁止用用户输入构造正则；如需模糊搜索使用索引或对输入做长度/字符白名单限制。",
+    "references": ["https://owasp.org/www-community/attacks/Regular_expression_Denial_of_Service_-_ReDoS"],
+    "patterns": [
+      {"regex": "new\\s+RegExp\\s*\\(\\s*[a-zA-Z_$]", "description": "动态正则构造", "confidence": 70}
+    ]
+  },
+  {
+    "id": "SAST-WEAKRANDOM-001",
+    "name": "不安全随机数（安全场景）",
+    "category": "weak-random",
+    "severity": "LOW",
+    "cwe": "CWE-330",
+    "languages": ["java", "python", "javascript", "typescript"],
+    "message": "检测到使用非加密安全随机数。若用于生成 Token/密钥/验证码，可被预测。",
+    "remediation": "使用 SecureRandom（Java）、secrets（Python）、crypto.randomBytes / Web Crypto（JS）等加密安全随机源。",
+    "references": ["https://cwe.mitre.org/data/definitions/330.html"],
+    "patterns": [
+      {"regex": "Math\\.random\\s*\\(\\s*\\)\\s*[\\*+]\\s*[0-9]", "description": "Math.random 生成数字", "confidence": 50},
+      {"regex": "random\\.random\\s*\\(|random\\.randint\\s*\\(|java\\.util\\.Random", "description": "非安全随机源", "confidence": 50}
+    ]
+  },
+  {
+    "id": "SAST-INSECURE-TLS-001",
+    "name": "关闭 TLS 证书校验",
+    "category": "insecure-tls",
+    "severity": "HIGH",
+    "cwe": "CWE-295",
+    "languages": ["python", "javascript", "typescript", "java"],
+    "message": "检测到关闭 TLS/SSL 证书校验，中间人攻击可窃听或篡改通信。",
+    "remediation": "保持证书校验开启；仅对测试环境可临时关闭，生产环境必须使用受信任证书链。",
+    "references": ["https://cwe.mitre.org/data/definitions/295.html"],
+    "patterns": [
+      {"regex": "verify\\s*=\\s*False", "description": "Python 关闭证书校验", "confidence": 85},
+      {"regex": "rejectUnauthorized\\s*:\\s*false|rejectUnauthorized\\s*=\\s*false", "description": "Node 关闭证书校验", "confidence": 85},
+      {"regex": "TrustManager\\s*\\([^)]*\\)\\s*\\{\\s*[^}]*checkServerTrusted\\s*\\([^)]*\\)\\s*\\{\\s*\\}", "description": "Java 信任所有证书", "confidence": 75}
+    ]
+  },
+  {
+    "id": "SAST-JAVA-REDIRECT-001",
+    "name": "开放重定向（sendRedirect）",
+    "category": "open-redirect",
+    "severity": "MEDIUM",
+    "cwe": "CWE-601",
+    "languages": ["java"],
+    "message": "检测到根据请求参数直接重定向，可被用于钓鱼攻击（开放重定向）。",
+    "remediation": "使用白名单校验重定向目标，只允许站内相对路径或已配置域名。",
+    "references": ["https://cwe.mitre.org/data/definitions/601.html"],
+    "patterns": [
+      {"regex": "sendRedirect\\s*\\([^)]*getParameter", "description": "请求参数重定向", "confidence": 75}
+    ]
+  },
+  {
+    "id": "SAST-PY-SSTI-001",
+    "name": "模板注入（render_template_string）",
+    "category": "ssti",
+    "severity": "HIGH",
+    "cwe": "CWE-1336",
+    "languages": ["python"],
+    "message": "检测到将用户输入直接渲染到模板字符串，可导致 SSTI 服务端模板注入（如 Jinja2 RCE）。",
+    "remediation": "不要将用户输入拼入模板字符串；使用 render_template 传入变量；如必须动态模板，对语法做白名单限制。",
+    "references": ["https://owasp.org/www-project-web-security-testing-guide/latest/4-Web_Application_Security_Testing/07-Input_Validation_Testing/13-Testing_for_Server_Side_Template_Injection"],
+    "patterns": [
+      {"regex": "render_template_string\\s*\\(\\s*f[\"']", "description": "模板字符串渲染", "confidence": 80}
+    ]
+  },
+  {
+    "id": "SAST-JS-PROTO-001",
+    "name": "原型污染（__proto__ 赋值）",
+    "category": "prototype-pollution",
+    "severity": "MEDIUM",
+    "cwe": "CWE-1321",
+    "languages": ["javascript", "typescript"],
+    "message": "检测到对 __proto__/constructor.prototype 赋值，可导致原型污染。",
+    "remediation": "禁止使用 __proto__ 作为对象键；使用 Object.create(null) 或 Map 存储用户可控键值；合并对象时过滤危险键。",
+    "references": ["https://cwe.mitre.org/data/definitions/1321.html"],
+    "patterns": [
+      {"regex": "__proto__\\s*\\]\\s*=|\\[\\s*\"__proto__\"\\s*\\]\\s*=", "description": "__proto__ 赋值", "confidence": 80},
+      {"regex": "constructor\\s*\\]\\s*=\\s*[^;]*prototype", "description": "constructor.prototype 赋值", "confidence": 70}
+    ]
+  }
+]
