@@ -9,11 +9,11 @@ import { toast } from 'sonner';
 
 const ECOSYSTEMS = [
   { name: 'npm', color: '#CB3837' },
-  { name: 'Maven', color: '#C71A36' },
+  { name: 'Maven', color: '#FF8A00' },
   { name: 'PyPI', color: '#3775A9' },
   { name: 'Go', color: '#00ADD8' },
-  { name: 'RubyGems', color: '#E9573F' },
-  { name: 'Packagist', color: '#30A9DE' },
+  { name: 'RubyGems', color: '#D63384' },
+  { name: 'Packagist', color: '#7C3AED' },
 ];
 
 export default function VulnDbPage() {
