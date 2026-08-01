@@ -50,6 +50,13 @@ public class AuthWebFilter implements WebFilter {
         String token = header != null && header.startsWith(CommonConstants.TOKEN_PREFIX)
                 ? header.substring(CommonConstants.TOKEN_PREFIX.length()).trim()
                 : (header != null ? header.trim() : null);
+        // 兜底：允许 ?token= 查询参数（用于浏览器直链下载报告等场景）
+        if (token == null || token.isBlank()) {
+            String q = exchange.getRequest().getQueryParams().getFirst("token");
+            if (q != null && !q.isBlank()) {
+                token = q.trim();
+            }
+        }
         try {
             User user = tokenService.verify(token);
             exchange.getAttributes().put(CommonConstants.CURRENT_USER_ATTR, user);

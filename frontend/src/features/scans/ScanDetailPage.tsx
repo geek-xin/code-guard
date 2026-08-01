@@ -134,6 +134,32 @@ export default function ScanDetailPage({ scanId }: { scanId: string }) {
     }
   }
 
+  async function downloadReport(format: string) {
+    const t = token();
+    try {
+      const resp = await fetch(`/api/scans/${scanId}/report?format=${format}`, {
+        headers: t ? { Authorization: `Bearer ${t}` } : {},
+      });
+      if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+      const blob = await resp.blob();
+      const url = URL.createObjectURL(blob);
+      if (format === 'html') {
+        window.open(url, '_blank');
+      } else {
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `codeguard-report-${scan?.projectName ?? 'scan'}.${format === 'word' ? 'docx' : format === 'excel' ? 'xlsx' : format}`;
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+      }
+      setTimeout(() => URL.revokeObjectURL(url), 5000);
+      toast.success('报告已开始下载');
+    } catch (e: any) {
+      toast.error('下载失败：' + (e?.message ?? '未知错误'));
+    }
+  }
+
   const stop = async () => {
     try {
       await api.stopScan(scanId);
@@ -457,70 +483,44 @@ export default function ScanDetailPage({ scanId }: { scanId: string }) {
           </DialogHeader>
           <div className="space-y-2">
             <div className="grid grid-cols-2 gap-2">
-              <a
-                href={`/api/scans/${scanId}/report?format=pdf`}
-                className="flex items-center gap-3 rounded-md border-chunky border-ink bg-white p-3 shadow-chunky-sm transition-all hover:bg-paper-alt active:translate-x-[2px] active:translate-y-[2px] active:shadow-none"
-              >
-                <FileText className="h-5 w-5 text-error" />
-                <div className="flex-1">
-                  <div className="text-sm font-black text-ink">PDF 报告</div>
-                  <div className="text-xs font-semibold text-ink-muted">.pdf · 正式版式</div>
-                </div>
-              </a>
-              <a
-                href={`/api/scans/${scanId}/report?format=word`}
-                className="flex items-center gap-3 rounded-md border-chunky border-ink bg-white p-3 shadow-chunky-sm transition-all hover:bg-paper-alt active:translate-x-[2px] active:translate-y-[2px] active:shadow-none"
-              >
-                <Download className="h-5 w-5 text-primary" />
-                <div className="flex-1">
-                  <div className="text-sm font-black text-ink">Word 报告</div>
-                  <div className="text-xs font-semibold text-ink-muted">.docx · 可编辑</div>
-                </div>
-              </a>
-              <a
-                href={`/api/scans/${scanId}/report?format=excel`}
-                className="flex items-center gap-3 rounded-md border-chunky border-ink bg-white p-3 shadow-chunky-sm transition-all hover:bg-paper-alt active:translate-x-[2px] active:translate-y-[2px] active:shadow-none"
-              >
-                <Download className="h-5 w-5 text-success" />
-                <div className="flex-1">
-                  <div className="text-sm font-black text-ink">Excel 报告</div>
-                  <div className="text-xs font-semibold text-ink-muted">.xlsx · 明细表格</div>
-                </div>
-              </a>
-              <a
-                href={`/api/scans/${scanId}/report?format=html`}
-                target="_blank"
-                rel="noreferrer"
-                className="flex items-center gap-3 rounded-md border-chunky border-ink bg-white p-3 shadow-chunky-sm transition-all hover:bg-paper-alt active:translate-x-[2px] active:translate-y-[2px] active:shadow-none"
-              >
-                <FileText className="h-5 w-5 text-accent" />
-                <div className="flex-1">
-                  <div className="text-sm font-black text-ink">HTML 报告</div>
-                  <div className="text-xs font-semibold text-ink-muted">新窗口 · 可打印</div>
-                </div>
-              </a>
+              {[
+                { fmt: 'pdf', icon: <FileText className="h-5 w-5 text-error" />, name: 'PDF 报告', sub: '.pdf · 正式版式' },
+                { fmt: 'word', icon: <Download className="h-5 w-5 text-primary" />, name: 'Word 报告', sub: '.docx · 可编辑' },
+                { fmt: 'excel', icon: <Download className="h-5 w-5 text-success" />, name: 'Excel 报告', sub: '.xlsx · 明细表格' },
+                { fmt: 'html', icon: <FileText className="h-5 w-5 text-accent" />, name: 'HTML 报告', sub: '新窗口 · 可打印' },
+              ].map((item) => (
+                <button
+                  key={item.fmt}
+                  type="button"
+                  onClick={() => downloadReport(item.fmt)}
+                  className="flex items-center gap-3 rounded-md border-chunky border-ink bg-white p-3 text-left shadow-chunky-sm transition-all hover:bg-paper-alt active:translate-x-[2px] active:translate-y-[2px] active:shadow-none"
+                >
+                  {item.icon}
+                  <div className="flex-1">
+                    <div className="text-sm font-black text-ink">{item.name}</div>
+                    <div className="text-xs font-semibold text-ink-muted">{item.sub}</div>
+                  </div>
+                </button>
+              ))}
             </div>
             <div className="grid grid-cols-2 gap-2">
-              <a
-                href={`/api/scans/${scanId}/report?format=markdown`}
-                className="flex items-center gap-3 rounded-md border-chunky border-ink bg-white p-3 shadow-chunky-sm transition-all hover:bg-paper-alt active:translate-x-[2px] active:translate-y-[2px] active:shadow-none"
-              >
-                <Download className="h-5 w-5 text-secondary" />
-                <div className="flex-1">
-                  <div className="text-sm font-black text-ink">Markdown 报告</div>
-                  <div className="text-xs font-semibold text-ink-muted">.md · 接入 Wiki</div>
-                </div>
-              </a>
-              <a
-                href={`/api/scans/${scanId}/report?format=json`}
-                className="flex items-center gap-3 rounded-md border-chunky border-ink bg-white p-3 shadow-chunky-sm transition-all hover:bg-paper-alt active:translate-x-[2px] active:translate-y-[2px] active:shadow-none"
-              >
-                <Download className="h-5 w-5 text-gold" />
-                <div className="flex-1">
-                  <div className="text-sm font-black text-ink">JSON 原始数据</div>
-                  <div className="text-xs font-semibold text-ink-muted">结构化 · 二次分析</div>
-                </div>
-              </a>
+              {[
+                { fmt: 'markdown', icon: <Download className="h-5 w-5 text-secondary" />, name: 'Markdown 报告', sub: '.md · 接入 Wiki' },
+                { fmt: 'json', icon: <Download className="h-5 w-5 text-gold" />, name: 'JSON 原始数据', sub: '结构化 · 二次分析' },
+              ].map((item) => (
+                <button
+                  key={item.fmt}
+                  type="button"
+                  onClick={() => downloadReport(item.fmt)}
+                  className="flex items-center gap-3 rounded-md border-chunky border-ink bg-white p-3 text-left shadow-chunky-sm transition-all hover:bg-paper-alt active:translate-x-[2px] active:translate-y-[2px] active:shadow-none"
+                >
+                  {item.icon}
+                  <div className="flex-1">
+                    <div className="text-sm font-black text-ink">{item.name}</div>
+                    <div className="text-xs font-semibold text-ink-muted">{item.sub}</div>
+                  </div>
+                </button>
+              ))}
             </div>
           </div>
         </DialogContent>
