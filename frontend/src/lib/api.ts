@@ -118,6 +118,11 @@ export interface Project {
   scheduleEnabled: boolean;
   emailNotify?: boolean;
   emails?: string[];
+  autoSyncEnabled?: boolean;
+  syncIntervalMinutes?: number;
+  lastSyncAt?: string;
+  autoScanEnabled?: boolean;
+  scanIntervalMinutes?: number;
   enabled: boolean;
   syncStatus: string;
   syncMessage?: string;

@@ -186,6 +186,12 @@ function ProjectCard({ project, busy, onScan, onSync, onEdit, onDelete }: {
           {running ? <Badge variant="warning">扫描中</Badge> : project.lastScanStatus === 'COMPLETED' ? (
             <Badge variant="success">已扫描</Badge>
           ) : project.lastScanStatus === 'FAILED' ? <Badge variant="danger">扫描失败</Badge> : null}
+          {project.autoScanEnabled && (
+            <Badge variant="outline"><ScanSearch className="h-3 w-3" /> {(project.scanIntervalMinutes ?? 180) / 60} 小时自动扫描</Badge>
+          )}
+          {project.autoSyncEnabled && (
+            <Badge variant="outline"><RefreshCw className="h-3 w-3" /> {project.syncIntervalMinutes ?? 60} 分钟同步</Badge>
+          )}
           {project.scheduleEnabled && (
             <Badge variant="outline"><Clock className="h-3 w-3" /> {project.scheduleCron}</Badge>
           )}

@@ -34,6 +34,10 @@ export default function ProjectFormDialog({
   const [token, setToken] = useState('');
   const [scheduleCron, setScheduleCron] = useState('');
   const [scheduleEnabled, setScheduleEnabled] = useState(false);
+  const [autoScan, setAutoScan] = useState(true);
+  const [scanInterval, setScanInterval] = useState(180);
+  const [autoSync, setAutoSync] = useState(true);
+  const [syncInterval, setSyncInterval] = useState(60);
   const [emailNotify, setEmailNotify] = useState(false);
   const [emails, setEmails] = useState('');
   const [enabled, setEnabled] = useState(true);
@@ -50,6 +54,10 @@ export default function ProjectFormDialog({
       setToken('');
       setScheduleCron(project?.scheduleCron ?? '');
       setScheduleEnabled(project?.scheduleEnabled ?? false);
+      setAutoScan(project?.autoScanEnabled ?? true);
+      setScanInterval(project?.scanIntervalMinutes ?? 180);
+      setAutoSync(project?.autoSyncEnabled ?? true);
+      setSyncInterval(project?.syncIntervalMinutes ?? 60);
       setEmailNotify(project?.emailNotify ?? false);
       setEmails(project?.emails?.join(', ') ?? '');
       setEnabled(project?.enabled ?? true);
@@ -69,6 +77,10 @@ export default function ProjectFormDialog({
         repoUrl: source === 'LOCAL' ? undefined : repoUrl,
         scheduleCron: scheduleEnabled ? scheduleCron : undefined,
         scheduleEnabled,
+        autoScanEnabled: autoScan,
+        scanIntervalMinutes: scanInterval,
+        autoSyncEnabled: autoSync,
+        syncIntervalMinutes: syncInterval,
         emailNotify,
         emails: emailNotify ? emails.split(/[,，;\n]/).map((e) => e.trim()).filter(Boolean) : undefined,
         enabled,
@@ -155,27 +167,72 @@ export default function ProjectFormDialog({
 
           <div className="rounded-md border-2 border-ink/10 bg-paper p-3">
             <div className="flex items-center justify-between">
-              <label className="text-xs font-bold text-ink">定时扫描</label>
+              <label className="text-xs font-bold text-ink">定时同步代码</label>
               <button
                 type="button"
-                onClick={() => setScheduleEnabled(!scheduleEnabled)}
+                onClick={() => setAutoSync(!autoSync)}
                 className={cn(
                   'relative h-6 w-11 rounded-full border-chunky border-ink transition-colors',
-                  scheduleEnabled ? 'bg-secondary' : 'bg-paper',
+                  autoSync ? 'bg-secondary' : 'bg-paper',
                 )}
               >
-                <span className={cn('absolute top-0.5 h-4 w-4 rounded-full border border-ink bg-white transition-all', scheduleEnabled ? 'left-6' : 'left-0.5')} />
+                <span className={cn('absolute top-0.5 h-4 w-4 rounded-full border border-ink bg-white transition-all', autoSync ? 'left-6' : 'left-0.5')} />
               </button>
             </div>
-            {scheduleEnabled && (
-              <div className="mt-2">
-                <Input value={scheduleCron} onChange={(e) => setScheduleCron(e.target.value)}
-                  placeholder="cron 表达式，如 0 0 2 * * ? （每天 02:00）" />
-                <p className="mt-1 text-[11px] font-semibold text-ink-muted">
-                  支持秒/分/时/日/月/周：<code>0 0 2 * * ?</code> 每天 2 点 · <code>0 */30 * * * ?</code> 每 30 分钟
-                </p>
+            {autoSync && (
+              <div className="mt-2 flex items-center gap-2">
+                <span className="text-xs font-bold text-ink-muted">间隔（分钟）</span>
+                <Input type="number" min={5} value={syncInterval} onChange={(e) => setSyncInterval(Number(e.target.value))} className="w-32" />
+                <span className="text-[11px] font-semibold text-ink-muted">默认 60 分钟自动拉取最新代码</span>
               </div>
             )}
+          </div>
+
+          <div className="rounded-md border-2 border-ink/10 bg-paper p-3">
+            <div className="flex items-center justify-between">
+              <label className="text-xs font-bold text-ink">漏洞自动扫描</label>
+              <button
+                type="button"
+                onClick={() => setAutoScan(!autoScan)}
+                className={cn(
+                  'relative h-6 w-11 rounded-full border-chunky border-ink transition-colors',
+                  autoScan ? 'bg-secondary' : 'bg-paper',
+                )}
+              >
+                <span className={cn('absolute top-0.5 h-4 w-4 rounded-full border border-ink bg-white transition-all', autoScan ? 'left-6' : 'left-0.5')} />
+              </button>
+            </div>
+            {autoScan && (
+              <div className="mt-2 flex items-center gap-2">
+                <span className="text-xs font-bold text-ink-muted">间隔（分钟）</span>
+                <Input type="number" min={5} value={scanInterval} onChange={(e) => setScanInterval(Number(e.target.value))} className="w-28" />
+                <span className="text-[11px] font-semibold text-ink-muted">默认 180 分钟（3 小时）自动扫描一次</span>
+              </div>
+            )}
+            <div className="mt-2 border-t-2 border-ink/10 pt-2">
+              <div className="flex items-center justify-between">
+                <label className="text-xs font-bold text-ink-muted">高级：cron 定时扫描（填写后优先）</label>
+                <button
+                  type="button"
+                  onClick={() => setScheduleEnabled(!scheduleEnabled)}
+                  className={cn(
+                    'relative h-6 w-11 rounded-full border-chunky border-ink transition-colors',
+                    scheduleEnabled ? 'bg-secondary' : 'bg-paper',
+                  )}
+                >
+                  <span className={cn('absolute top-0.5 h-4 w-4 rounded-full border border-ink bg-white transition-all', scheduleEnabled ? 'left-6' : 'left-0.5')} />
+                </button>
+              </div>
+              {scheduleEnabled && (
+                <div className="mt-2">
+                  <Input value={scheduleCron} onChange={(e) => setScheduleCron(e.target.value)}
+                    placeholder="cron 表达式，如 0 0 2 * * ? （每天 02:00）" />
+                  <p className="mt-1 text-[11px] font-semibold text-ink-muted">
+                    <code>0 0 2 * * ?</code> 每天 2 点 · <code>0 */30 * * * ?</code> 每 30 分钟
+                  </p>
+                </div>
+              )}
+            </div>
           </div>
 
           <div className="rounded-md border-2 border-ink/10 bg-paper p-3">

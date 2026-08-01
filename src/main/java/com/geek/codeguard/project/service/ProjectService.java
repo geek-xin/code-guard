@@ -22,6 +22,8 @@ public class ProjectService {
 
     private final JsonStore jsonStore;
     private final GitService gitService;
+    /** 每个项目一把锁，防止并发 git 操作同一工作区 */
+    private final java.util.concurrent.ConcurrentHashMap<String, Object> projectLocks = new java.util.concurrent.ConcurrentHashMap<>();
 
     public ProjectService(JsonStore jsonStore, GitService gitService) {
         this.jsonStore = jsonStore;
@@ -49,6 +51,16 @@ public class ProjectService {
         }
         project.setId(UUID.randomUUID().toString());
         project.setEnabled(project.isEnabled());
+        // 默认开启定时同步（每 60 分钟），保持代码最新
+        if (project.getSyncIntervalMinutes() == null || project.getSyncIntervalMinutes() <= 0) {
+            project.setSyncIntervalMinutes(60);
+        }
+        project.setAutoSyncEnabled(true);
+        // 默认开启漏洞自动扫描（每 3 小时一次）
+        if (project.getScanIntervalMinutes() == null || project.getScanIntervalMinutes() <= 0) {
+            project.setScanIntervalMinutes(180);
+        }
+        project.setAutoScanEnabled(true);
         project.setSyncStatus("PENDING");
         project.setCreatedAt(Instant.now());
         project.setUpdatedAt(Instant.now());
@@ -83,6 +95,14 @@ public class ProjectService {
         }
         if (update.getScheduleCron() != null) existing.setScheduleCron(update.getScheduleCron());
         if (update.isScheduleEnabled() != existing.isScheduleEnabled()) existing.setScheduleEnabled(update.isScheduleEnabled());
+        if (update.isAutoSyncEnabled() != existing.isAutoSyncEnabled()) existing.setAutoSyncEnabled(update.isAutoSyncEnabled());
+        if (update.getSyncIntervalMinutes() != null && update.getSyncIntervalMinutes() > 0) {
+            existing.setSyncIntervalMinutes(update.getSyncIntervalMinutes());
+        }
+        if (update.isAutoScanEnabled() != existing.isAutoScanEnabled()) existing.setAutoScanEnabled(update.isAutoScanEnabled());
+        if (update.getScanIntervalMinutes() != null && update.getScanIntervalMinutes() > 0) {
+            existing.setScanIntervalMinutes(update.getScanIntervalMinutes());
+        }
         if (update.isEnabled() != existing.isEnabled()) existing.setEnabled(update.isEnabled());
         validateAndNormalize(existing);
         existing.setUpdatedAt(Instant.now());
@@ -130,17 +150,20 @@ public class ProjectService {
         }
     }
 
-    /** 拉取/克隆代码到工作区 */
+    /** 拉取/克隆代码到工作区（按项目互斥，防止并发 git 操作） */
     public Path syncCode(Project project) {
-        if (Project.SOURCE_LOCAL.equals(project.getSource())) {
-            Path dir = Path.of(project.getLocalPath()).toAbsolutePath().normalize();
-            if (!Files.isDirectory(dir)) {
-                throw new BusinessException(ErrorCodeEnum.SOURCE_NOT_FOUND, "本地源码目录不存在: " + dir);
+        Object lock = projectLocks.computeIfAbsent(project.getId(), k -> new Object());
+        synchronized (lock) {
+            if (Project.SOURCE_LOCAL.equals(project.getSource())) {
+                Path dir = Path.of(project.getLocalPath()).toAbsolutePath().normalize();
+                if (!Files.isDirectory(dir)) {
+                    throw new BusinessException(ErrorCodeEnum.SOURCE_NOT_FOUND, "本地源码目录不存在: " + dir);
+                }
+                return dir;
             }
-            return dir;
+            String token = project.getToken();
+            return gitService.syncRepo(project.getId(), project.getRepoUrl(), project.getBranch(), token);
         }
-        String token = project.getToken();
-        return gitService.syncRepo(project.getId(), project.getRepoUrl(), project.getBranch(), token);
     }
 
     public void updateSyncStatus(Project p, String status, String message) {

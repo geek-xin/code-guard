@@ -39,6 +39,10 @@ public class ProjectController {
         private boolean scheduleEnabled;
         private boolean emailNotify;
         private List<String> emails;
+        private boolean autoSyncEnabled = true;
+        private Integer syncIntervalMinutes;
+        private boolean autoScanEnabled = true;
+        private Integer scanIntervalMinutes;
         private boolean enabled = true;
     }
 
@@ -68,6 +72,10 @@ public class ProjectController {
                     .emailNotify(req.isEmailNotify())
                     .emails(req.getEmails() == null ? null : req.getEmails().stream()
                             .map(String::trim).filter(e -> !e.isBlank()).toList())
+                    .autoSyncEnabled(req.isAutoSyncEnabled())
+                    .syncIntervalMinutes(req.getSyncIntervalMinutes())
+                    .autoScanEnabled(req.isAutoScanEnabled())
+                    .scanIntervalMinutes(req.getScanIntervalMinutes())
                     .enabled(req.isEnabled())
                     .build();
             return projectService.create(project);
@@ -89,6 +97,10 @@ public class ProjectController {
                     .scheduleEnabled(req.isScheduleEnabled())
                     .emailNotify(req.isEmailNotify())
                     .emails(req.getEmails())
+                    .autoSyncEnabled(req.isAutoSyncEnabled())
+                    .syncIntervalMinutes(req.getSyncIntervalMinutes())
+                    .autoScanEnabled(req.isAutoScanEnabled())
+                    .scanIntervalMinutes(req.getScanIntervalMinutes())
                     .enabled(req.isEnabled())
                     .build();
             return projectService.update(id, update);

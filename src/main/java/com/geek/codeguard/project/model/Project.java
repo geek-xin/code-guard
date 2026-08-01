@@ -37,6 +37,16 @@ public class Project {
     private boolean emailNotify;
     /** 报告接收邮箱（多个） */
     private List<String> emails;
+    /** 是否开启定时同步代码（默认 60 分钟） */
+    private boolean autoSyncEnabled;
+    /** 定时同步间隔（分钟），默认 60 */
+    private Integer syncIntervalMinutes;
+    /** 上次同步时间 */
+    private Instant lastSyncAt;
+    /** 是否开启漏洞自动扫描（默认每 3 小时一次） */
+    private boolean autoScanEnabled;
+    /** 漏洞自动扫描间隔（分钟），默认 180（3 小时） */
+    private Integer scanIntervalMinutes;
     private boolean enabled;
     /** 代码就绪状态：READY / SYNCING / ERROR */
     private String syncStatus;
