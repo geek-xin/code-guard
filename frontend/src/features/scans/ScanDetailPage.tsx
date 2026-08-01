@@ -394,7 +394,7 @@ export default function ScanDetailPage({ scanId }: { scanId: string }) {
 
       {/* 漏洞详情 */}
       <Dialog open={!!selected} onOpenChange={(v) => !v && setSelected(null)}>
-        <DialogContent className="max-w-2xl overflow-x-hidden">
+        <DialogContent className="max-w-3xl overflow-x-hidden">
           {selected && (
             <>
               <DialogHeader>
