@@ -15,6 +15,7 @@ config/workspace/
 config/scans/
 config/sca-cache/
 config/users/users.json
+config/settings.json
 config/repositories/*.json
 config/vulndb/*.tmp
 logs/

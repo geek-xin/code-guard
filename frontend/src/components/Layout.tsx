@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Shield, LayoutDashboard, FolderGit2, ScanSearch, Database, LogOut, Github } from 'lucide-react';
+import { Shield, LayoutDashboard, FolderGit2, ScanSearch, Database, Settings as SettingsIcon, LogOut, Github } from 'lucide-react';
 import { api, setToken, SessionUser } from '@/lib/api';
 import { cn } from '@/lib/utils';
 import { useEffect } from 'react';
@@ -9,6 +9,7 @@ const NAV = [
   { key: 'projects', label: '项目', icon: FolderGit2, href: '#/projects' },
   { key: 'scans', label: '扫描记录', icon: ScanSearch, href: '#/scans' },
   { key: 'vulndb', label: '漏洞库', icon: Database, href: '#/vulndb' },
+  { key: 'settings', label: '设置', icon: SettingsIcon, href: '#/settings' },
 ];
 
 export default function Layout({ children, current }: { children: React.ReactNode; current: string }) {

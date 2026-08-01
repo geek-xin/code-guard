@@ -383,8 +383,11 @@ export default function ScanDetailPage({ scanId }: { scanId: string }) {
                     {running ? 'AI 审查进行中...' : '本次扫描未生成 AI 审查意见'}
                   </p>
                   <p className="mt-1 text-xs font-semibold text-ink-subtle">
-                    配置 <code>CODEGUARD_AGENT_API_KEY</code>（OpenAI 兼容接口）后自动启用
+                    在「设置」中配置 OpenAI 兼容接口的 API Key 后自动启用
                   </p>
+                  <Button variant="outline" size="sm" className="mt-3" onClick={() => (window.location.hash = '#/settings')}>
+                    <Sparkles className="mr-1 h-4 w-4" /> 前往设置
+                  </Button>
                 </div>
               )}
             </CardContent>

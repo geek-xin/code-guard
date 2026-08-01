@@ -3,6 +3,8 @@ package com.geek.codeguard.agent;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.geek.codeguard.config.CodeGuardProperties;
 import com.geek.codeguard.scan.model.ScanFinding;
+import com.geek.codeguard.settings.model.Settings;
+import com.geek.codeguard.settings.service.SettingsService;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 
@@ -26,16 +28,19 @@ import java.util.Map;
 public class ReviewAgentService {
 
     private final CodeGuardProperties props;
+    private final SettingsService settingsService;
     private final ObjectMapper mapper = new ObjectMapper();
     private final HttpClient http = HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(10)).build();
 
-    public ReviewAgentService(CodeGuardProperties props) {
+    public ReviewAgentService(CodeGuardProperties props, SettingsService settingsService) {
         this.props = props;
+        this.settingsService = settingsService;
     }
 
     public boolean isConfigured() {
-        CodeGuardProperties.Agent cfg = props.getAgent();
-        return cfg.isEnabled() && cfg.getApiKey() != null && !cfg.getApiKey().isBlank();
+        Settings.Agent cfg = settingsService.effectiveAgent();
+        return cfg.getEnabled() != null && cfg.getEnabled()
+                && cfg.getApiKey() != null && !cfg.getApiKey().isBlank();
     }
 
     /** 返回 Markdown 审查报告；失败或未配置时返回 null */
@@ -44,17 +49,18 @@ public class ReviewAgentService {
             return null;
         }
         try {
+            Settings.Agent cfg = settingsService.effectiveAgent();
             String prompt = buildPrompt(projectName, findings);
-            String endpoint = props.getAgent().getBaseUrl().replaceAll("/+$", "") + "/chat/completions";
+            String endpoint = cfg.getBaseUrl().replaceAll("/+$", "") + "/chat/completions";
             Map<String, Object> body = new LinkedHashMap<>();
-            body.put("model", props.getAgent().getModel());
+            body.put("model", cfg.getModel());
             body.put("temperature", 0.2);
             body.put("messages", List.of(
                     Map.of("role", "system", "content", SYSTEM_PROMPT),
                     Map.of("role", "user", "content", prompt)
             ));
             HttpRequest req = HttpRequest.newBuilder(URI.create(endpoint))
-                    .header("Authorization", "Bearer " + props.getAgent().getApiKey())
+                    .header("Authorization", "Bearer " + cfg.getApiKey())
                     .header("Content-Type", "application/json")
                     .timeout(Duration.ofMillis(props.getAgent().getTimeoutMs()))
                     .POST(HttpRequest.BodyPublishers.ofString(mapper.writeValueAsString(body)))

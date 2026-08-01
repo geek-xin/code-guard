@@ -86,6 +86,10 @@ export const api = {
   // vulndb
   vulndbStatus: () => request<VulnDbStatus>('/vulndb/status'),
   vulndbUpdate: () => request<{ started: boolean; message: string }>('/vulndb/update', { method: 'POST' }),
+
+  // settings
+  getSettings: () => request<SettingsView>('/settings'),
+  updateSettings: (data: SettingsPayload) => request<SettingsView>('/settings', { method: 'PUT', body: JSON.stringify(data) }),
 };
 
 // ============ 类型 ============
@@ -193,6 +197,30 @@ export interface TrendPoint {
   high: number;
   medium: number;
   low: number;
+}
+
+export interface SettingsView {
+  agent: {
+    enabled: boolean;
+    baseUrl: string;
+    model: string;
+    apiKeyConfigured: boolean;
+    source: string;
+  };
+  oauth: {
+    githubConfigured: boolean;
+    gitlabConfigured: boolean;
+    gitlabBaseUrl: string;
+  };
+}
+
+export interface SettingsPayload {
+  agent?: {
+    enabled?: boolean;
+    baseUrl?: string;
+    apiKey?: string;
+    model?: string;
+  };
 }
 
 export interface VulnDbStatus {

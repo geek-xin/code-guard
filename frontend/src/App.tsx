@@ -8,6 +8,7 @@ import ProjectsPage from '@/features/projects/ProjectsPage';
 import ScanDetailPage from '@/features/scans/ScanDetailPage';
 import ScansPage from '@/features/scans/ScansPage';
 import VulnDbPage from '@/features/vulndb/VulnDbPage';
+import SettingsPage from '@/features/settings/SettingsPage';
 
 function useHashRoute() {
   const [hash, setHash] = useState(window.location.hash || '#/dashboard');
@@ -60,6 +61,7 @@ export default function App() {
         {page === 'scans' && !segs[1] && <ScansPage />}
         {page === 'scans' && segs[1] && <ScanDetailPage scanId={segs[1]} />}
         {page === 'vulndb' && <VulnDbPage />}
+        {page === 'settings' && <SettingsPage />}
       </Layout>
       <Toaster theme="dark" position="top-center" richColors />
     </>
