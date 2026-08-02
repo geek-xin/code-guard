@@ -159,7 +159,7 @@ export default function ProjectsPage() {
           </CardContent>
         </Card>
       ) : (
-        <div className="space-y-6">
+        <div className="space-y-4">
           {grouped.map(([groupName, groupProjects]) => (
             <section key={groupName}>
               <div className="mb-3 flex items-center gap-2">
@@ -174,7 +174,6 @@ export default function ProjectsPage() {
                   <ProjectCard
                     key={p.id}
                     project={p}
-                    groupColor={groupColor(p.group, groups)}
                     busy={busyId === p.id}
                     onScan={() => scan(p)}
                     onSync={() => sync(p)}
@@ -214,12 +213,6 @@ export default function ProjectsPage() {
   );
 }
 
-function groupColor(group: string | undefined, groups: ProjectGroup[]): string {
-  if (!group) return '#B9B2A9';
-  const g = groups.find((x) => x.name === group);
-  return g?.color ?? '#B9B2A9';
-}
-
 /** 间隔格式化：>=60 分钟显示为小时，否则显示分钟 */
 function formatInterval(minutes: number): string {
   const m = Math.max(1, Math.round(minutes || 0));
@@ -238,8 +231,8 @@ function tagColor(tag: string): string {
   return TAG_COLORS[h % TAG_COLORS.length];
 }
 
-function ProjectCard({ project, groupColor, busy, onScan, onSync, onEdit, onDelete }: {
-  project: Project; groupColor?: string; busy: boolean; onScan: () => void; onSync: () => void; onEdit: () => void; onDelete: () => void;
+function ProjectCard({ project, busy, onScan, onSync, onEdit, onDelete }: {
+  project: Project; busy: boolean; onScan: () => void; onSync: () => void; onEdit: () => void; onDelete: () => void;
 }) {
   const stats = project.lastScanStats ?? {};
   const src = SOURCE_META[project.source] ?? SOURCE_META.LOCAL;
@@ -256,46 +249,41 @@ function ProjectCard({ project, groupColor, busy, onScan, onSync, onEdit, onDele
     );
 
   return (
-    <Card className="flex flex-col transition-transform hover:-translate-y-0.5">
-      <CardContent className="flex flex-1 flex-col gap-3 p-4">
-        <div className="flex items-start justify-between gap-2">
-          <div className="min-w-0">
-            <div className="flex flex-wrap items-center gap-1.5">
-              <span className="shrink-0 text-primary">{src.icon}</span>
-              <span className="truncate text-base font-black text-ink">{project.alias || project.name}</span>
-              {project.group && (
-                <span
-                  className="inline-flex items-center gap-1 rounded-full border-chunky border-ink px-2 py-0.5 text-[11px] font-black text-white"
-                  style={{ background: groupColor ?? '#B9B2A9' }}
-                >
-                  {project.group}
-                </span>
-              )}
-              <Badge variant="outline">{src.label}</Badge>
-            </div>
-            {/* 标签展示 */}
-            {project.tags && project.tags.length > 0 && (
-              <div className="mt-1.5 flex flex-wrap gap-1">
-                {project.tags.map((t) => (
-                  <span
-                    key={t}
-                    className="inline-flex items-center rounded-full border-chunky border-ink px-2 py-0.5 text-[11px] font-black text-white"
-                    style={{ background: tagColor(t) }}
-                  >
-                    {t}
-                  </span>
-                ))}
-              </div>
-            )}
-            <p className="mt-1 line-clamp-1 break-all text-xs font-semibold text-ink-muted">
-              {project.alias && project.alias !== project.name && <span>名称：{project.name}</span>}
-              {project.description && (
-                <span>{project.alias && project.alias !== project.name ? ' · ' : ''}{project.description}</span>
-              )}
-            </p>
-          </div>
+    <Card className="flex flex-col">
+      <CardContent className="flex flex-1 flex-col gap-2.5 p-4">
+        {/* 标题行：别名 + 分组 + 来源 */}
+        <div className="flex items-center gap-1.5">
+          <span className="shrink-0 text-primary">{src.icon}</span>
+          <span className="truncate text-base font-black text-ink">{project.alias || project.name}</span>
+          <Badge variant="outline" className="shrink-0">{src.label}</Badge>
         </div>
 
+        {/* 标签 */}
+        {project.tags && project.tags.length > 0 && (
+          <div className="flex flex-wrap gap-1">
+            {project.tags.map((t) => (
+              <span
+                key={t}
+                className="inline-flex items-center rounded-full border-chunky border-ink px-2 py-0.5 text-[11px] font-black text-white"
+                style={{ background: tagColor(t) }}
+              >
+                {t}
+              </span>
+            ))}
+          </div>
+        )}
+
+        {/* 副标题：名称 / 描述 */}
+        {(project.alias && project.alias !== project.name || project.description) && (
+          <p className="line-clamp-1 break-all text-xs font-semibold text-ink-muted">
+            {project.alias && project.alias !== project.name && <span>名称：{project.name}</span>}
+            {project.description && (
+              <span>{project.alias && project.alias !== project.name ? ' · ' : ''}{project.description}</span>
+            )}
+          </p>
+        )}
+
+        {/* 状态徽章行 */}
         <div className="flex flex-wrap items-center gap-1.5">
           {syncBadge}
           {running ? <Badge variant="warning">扫描中</Badge> : project.lastScanStatus === 'COMPLETED' ? (
@@ -315,18 +303,18 @@ function ProjectCard({ project, groupColor, busy, onScan, onSync, onEdit, onDele
           )}
         </div>
 
-        {/* 最近扫描统计 */}
-        <div className="rounded-md border-2 border-ink/10 bg-paper p-2.5">
+        {/* 最近扫描统计（固定高度，避免卡片高度抖动） */}
+        <div className="min-h-[58px] rounded-md border-2 border-ink/10 bg-paper p-2.5">
           {project.lastScanAt ? (
             <>
               <div className="flex items-center justify-between text-[11px] font-bold text-ink-muted">
                 <span>最近扫描 {timeAgo(project.lastScanAt)}</span>
-                <span>{formatTime(project.lastScanAt)}</span>
+                <span className="ml-2 shrink-0">{formatTime(project.lastScanAt)}</span>
               </div>
-              <div className="mt-1.5 flex items-center gap-3">
+              <div className="mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-1">
                 {(['critical', 'high', 'medium', 'low'] as const).map((k) => (
                   <span key={k} className="flex items-center gap-1 text-sm font-black text-ink">
-                    <span className="h-3 w-3 rounded-sm border border-ink" style={{ background: SEVERITY_META[k.toUpperCase()].bar }} />
+                    <span className="h-3 w-3 shrink-0 rounded-sm border border-ink" style={{ background: SEVERITY_META[k.toUpperCase()].bar }} />
                     {(stats[k] as number) ?? 0}
                   </span>
                 ))}
@@ -334,11 +322,12 @@ function ProjectCard({ project, groupColor, busy, onScan, onSync, onEdit, onDele
               </div>
             </>
           ) : (
-            <div className="py-1 text-center text-xs font-semibold text-ink-subtle">尚未扫描</div>
+            <div className="flex h-[46px] items-center justify-center text-xs font-semibold text-ink-subtle">尚未扫描</div>
           )}
         </div>
 
-        <div className="mt-auto flex items-center gap-1.5 pt-1">
+        {/* 操作按钮 */}
+        <div className="mt-auto flex items-center gap-1.5 pt-0.5">
           <Button size="sm" variant="default" onClick={onScan} disabled={running || busy}>
             <ScanSearch className="h-3.5 w-3.5" /> {running ? '扫描中' : '扫描'}
           </Button>
