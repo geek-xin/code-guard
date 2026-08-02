@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -28,7 +28,6 @@ export default function ProjectFormDialog({
   const [name, setName] = useState('');
   const [alias, setAlias] = useState('');
   const [description, setDescription] = useState('');
-  const nameTouched = useRef(false);
   const [source, setSource] = useState('GITHUB');
   const [repoUrl, setRepoUrl] = useState('');
   const [branch, setBranch] = useState('main');
@@ -56,7 +55,6 @@ export default function ProjectFormDialog({
 
   useEffect(() => {
     if (open) {
-      nameTouched.current = false;
       setName(project?.name ?? '');
       setAlias(project?.alias ?? '');
       setDescription(project?.description ?? '');
@@ -146,13 +144,16 @@ export default function ProjectFormDialog({
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             <div>
               <label className="mb-1 block text-xs font-bold text-ink-muted">项目名称 *</label>
-              <Input value={name} onChange={(e) => { nameTouched.current = true; setName(e.target.value); }}
-                required placeholder="自动识别，可修改" />
-              <p className="mt-1 text-[11px] font-semibold text-ink-muted">填写目录/仓库地址后自动识别</p>
+              <Input value={name} disabled required
+                className="cursor-not-allowed bg-paper text-ink-muted"
+                placeholder="由目录/仓库地址自动识别" />
+              <p className="mt-1 text-[11px] font-semibold text-ink-muted">
+                自动识别且不可修改；展示名称请填写「别名」
+              </p>
             </div>
             <div>
-              <label className="mb-1 block text-xs font-bold text-ink-muted">别名（可选）</label>
-              <Input value={alias} onChange={(e) => setAlias(e.target.value)} placeholder="展示用名称" />
+              <label className="mb-1 block text-xs font-bold text-ink-muted">别名 *（展示用）</label>
+              <Input value={alias} onChange={(e) => setAlias(e.target.value)} placeholder="例如：接口模拟器" required />
             </div>
             <div className="sm:col-span-2">
               <label className="mb-1 block text-xs font-bold text-ink-muted">描述</label>
@@ -165,10 +166,8 @@ export default function ProjectFormDialog({
                   <Input value={repoUrl} onChange={(e) => {
                     const v = e.target.value;
                     setRepoUrl(v);
-                    if (!nameTouched.current) {
-                      const n = detectName(v);
-                      if (n) setName(n);
-                    }
+                    const n = detectName(v);
+                    if (n) setName(n);
                   }} required={source !== 'LOCAL'}
                     placeholder="https://github.com/org/repo.git" />
                 </div>
@@ -189,10 +188,8 @@ export default function ProjectFormDialog({
                 <Input value={localPath} onChange={(e) => {
                   const v = e.target.value;
                   setLocalPath(v);
-                  if (!nameTouched.current) {
-                    const n = detectName(v);
-                    if (n) setName(n);
-                  }
+                  const n = detectName(v);
+                  if (n) setName(n);
                 }} required={source === 'LOCAL'}
                   placeholder="/Users/you/projects/my-app" />
               </div>
