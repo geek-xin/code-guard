@@ -50,6 +50,7 @@ public class ProjectService {
             throw new BusinessException(ErrorCodeEnum.PROJECT_NAME_EXISTS);
         }
         project.setId(UUID.randomUUID().toString());
+        validateAliasUnique(null, project.getAlias());
         project.setEnabled(project.isEnabled());
         // 默认开启定时同步（每 60 分钟），保持代码最新
         if (project.getSyncIntervalMinutes() == null || project.getSyncIntervalMinutes() <= 0) {
@@ -72,7 +73,10 @@ public class ProjectService {
 
     public Project update(String id, Project update) {
         Project existing = get(id);
-        if (update.getAlias() != null) existing.setAlias(update.getAlias());
+        if (update.getAlias() != null) {
+            validateAliasUnique(id, update.getAlias());
+            existing.setAlias(update.getAlias());
+        }
         if (update.getName() != null) {
             list().stream().filter(p -> !p.getId().equals(id) && p.getName().equalsIgnoreCase(update.getName()))
                     .findFirst().ifPresent(p -> {
@@ -109,6 +113,21 @@ public class ProjectService {
         existing.setUpdatedAt(Instant.now());
         save(existing);
         return existing;
+    }
+
+    /** 别名唯一性校验（大小写不敏感），排除自身 */
+    private void validateAliasUnique(String selfId, String alias) {
+        if (alias == null || alias.isBlank()) {
+            return;
+        }
+        list().stream()
+                .filter(p -> !p.getId().equals(selfId))
+                .filter(p -> alias.equalsIgnoreCase(p.getAlias()))
+                .findFirst()
+                .ifPresent(p -> {
+                    throw new BusinessException(ErrorCodeEnum.ALIAS_EXISTS, "别名「" + alias + "」已被项目「"
+                            + (p.getAlias() != null ? p.getAlias() : p.getName()) + "」使用");
+                });
     }
 
     private void validateAndNormalize(Project p) {

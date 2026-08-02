@@ -160,12 +160,26 @@ public class ReviewAgentService {
             2. 结构：漏洞总体评估、按严重程度分类的修复建议、优先修复清单（Top 5）、长期加固建议。
             3. 每条建议必须给出：问题、风险、具体修复步骤（含代码示例）。
             4. 如发现误报，明确说明并给出理由。
+            5. 数量一致性：输入中给出了各严重级别的精确统计（如 CRITICAL 2 个）。
+               你在每个级别标题下展开的具体问题条目数必须与该统计完全一致，逐个列出，
+               严禁出现标题声明 N 个但只列出少于 N 条的遗漏，也不得把多条合并为一条。
             """;
 
     private String buildPrompt(String projectName, List<ScanFinding> findings) {
         StringBuilder sb = new StringBuilder();
         sb.append("项目：").append(projectName).append("\n");
-        sb.append("本次扫描发现 ").append(findings.size()).append(" 个问题，按严重程度排序如下：\n\n");
+        sb.append("本次扫描发现 ").append(findings.size()).append(" 个问题。\n");
+        // 精确统计各严重级别数量
+        java.util.Map<String, Integer> counts = new java.util.LinkedHashMap<>();
+        for (ScanFinding f : findings) {
+            String sev = f.getSeverity() == null ? "UNKNOWN" : f.getSeverity().toUpperCase();
+            counts.merge(sev, 1, Integer::sum);
+        }
+        sb.append("严重级别统计（务必在对应标题下逐条列出与数量一致的条目）：");
+        sb.append(counts.entrySet().stream()
+                .map(e -> e.getKey() + " " + e.getValue() + " 个")
+                .reduce((a, b) -> a + "，" + b).orElse("无"));
+        sb.append("\n\n按严重程度排序的完整问题清单如下：\n\n");
         List<ScanFinding> sorted = new ArrayList<>(findings);
         sorted.sort((a, b) -> Integer.compare(sevRank(b.getSeverity()), sevRank(a.getSeverity())));
         int limit = Math.min(sorted.size(), 30);

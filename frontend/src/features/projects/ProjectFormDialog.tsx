@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -29,6 +29,7 @@ export default function ProjectFormDialog({
 }) {
   const [name, setName] = useState('');
   const [alias, setAlias] = useState('');
+  const aliasTouched = useRef(false);
   const [description, setDescription] = useState('');
   const [source, setSource] = useState('GITHUB');
   const [repoUrl, setRepoUrl] = useState('');
@@ -59,7 +60,8 @@ export default function ProjectFormDialog({
   useEffect(() => {
     if (open) {
       setName(project?.name ?? '');
-      setAlias(project?.alias ?? '');
+      aliasTouched.current = false;
+      setAlias(project?.alias ?? project?.name ?? '');
       setDescription(project?.description ?? '');
       setSource(project?.source ?? 'GITHUB');
       setRepoUrl(project?.repoUrl ?? '');
@@ -156,7 +158,8 @@ export default function ProjectFormDialog({
             </div>
             <div>
               <label className="mb-1 block text-xs font-bold text-ink-muted">别名 *（展示用）</label>
-              <Input value={alias} onChange={(e) => setAlias(e.target.value)} placeholder="例如：接口模拟器" required />
+              <Input value={alias} onChange={(e) => { aliasTouched.current = true; setAlias(e.target.value); }}
+                placeholder="例如：接口模拟器" required />
             </div>
             <div className="sm:col-span-2">
               <label className="mb-1 block text-xs font-bold text-ink-muted">描述</label>
@@ -170,7 +173,10 @@ export default function ProjectFormDialog({
                     const v = e.target.value;
                     setRepoUrl(v);
                     const n = detectName(v);
-                    if (n) setName(n);
+                    if (n) {
+                      setName(n);
+                      if (!aliasTouched.current) setAlias(n);
+                    }
                   }} required={source !== 'LOCAL'}
                     placeholder="https://github.com/org/repo.git" />
                 </div>

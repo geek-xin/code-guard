@@ -21,6 +21,7 @@ public enum ErrorCodeEnum {
     // project
     PROJECT_NOT_FOUND("2001", "项目不存在"),
     PROJECT_NAME_EXISTS("2002", "项目名称已存在"),
+    ALIAS_EXISTS("2005", "别名已存在，请更换"),
     CLONE_FAILED("2003", "代码拉取失败"),
     SOURCE_NOT_FOUND("2004", "本地源码目录不存在"),
 
