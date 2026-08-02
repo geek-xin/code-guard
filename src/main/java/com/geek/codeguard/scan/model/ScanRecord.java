@@ -5,7 +5,6 @@ import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
-import java.util.List;
 import java.util.Map;
 
 /**
@@ -32,7 +31,6 @@ public class ScanRecord {
     /** 各阶段进度：{stage: {status, current, total, message}} */
     private Map<String, StageProgress> stages;
     private Map<String, Object> summary;
-    private List<String> findingsSummary;
     private String agentReview;
 
     @Data

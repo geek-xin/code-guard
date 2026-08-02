@@ -15,6 +15,4 @@ public class Dependency {
     private String version;
     /** 所在清单文件（相对路径） */
     private String manifest;
-    /** 是否为传递依赖（lock 文件中出现） */
-    private boolean transitive;
 }

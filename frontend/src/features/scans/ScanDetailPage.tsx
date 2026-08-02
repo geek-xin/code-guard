@@ -20,11 +20,9 @@ const STAGE_ICON: Record<string, React.ReactNode> = {
   AGENT: <Sparkles className="h-4 w-4" />,
 };
 
-interface LiveFinding extends ScanFinding {}
-
 export default function ScanDetailPage({ scanId }: { scanId: string }) {
   const [scan, setScan] = useState<ScanRecord | null>(null);
-  const [findings, setFindings] = useState<LiveFinding[]>([]);
+  const [findings, setFindings] = useState<ScanFinding[]>([]);
   const [liveCount, setLiveCount] = useState<Record<string, number>>({});
   const [severityFilter, setSeverityFilter] = useState('');
   const [engineFilter, setEngineFilter] = useState('');

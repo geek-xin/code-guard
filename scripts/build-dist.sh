@@ -141,30 +141,108 @@ fi
 STOPEOF
 chmod +x "$STAGING_DIR/stop.sh"
 
-# run.bat / stop.bat（Windows）
+# run.bat / stop.bat（Windows，参考 web-sim）
 convert_to_crlf() {
   awk '{ printf "%s\r\n", $0 }' "$1" > "$1.tmp" && mv "$1.tmp" "$1"
 }
 
-cat > "$STAGING_DIR/run.bat" <<'BAT'
+cat > "$STAGING_DIR/run.bat" <<RUNBATEOF
 @echo off
-setlocal
-cd /d %~dp0
-start /b java -jar codeguard-0.1.0.jar
-echo CodeGuard started, admin: http://localhost:9997/admin
-BAT
-cat > "$STAGING_DIR/stop.bat" <<'BAT'
-@echo off
-setlocal
-cd /d %~dp0
-if exist codeguard.pid (
-  set /p PID=<codeguard.pid
-  taskkill /PID %PID% /F
-  del codeguard.pid
-) else (
-  echo No pid file
+setlocal EnableExtensions EnableDelayedExpansion
+cd /d "%~dp0"
+
+set "APP_NAME=${APP_NAME}"
+set "APP_DIR=%CD%"
+set "JAR_FILE=%CD%\\%APP_NAME%.jar"
+set "PID_FILE=%CD%\\codeguard.pid"
+set "LOG_DIR=%CD%\\logs"
+set "BOOTSTRAP_OUT_FILE=%LOG_DIR%\\codeguard.bootstrap.out"
+set "BOOTSTRAP_ERR_FILE=%LOG_DIR%\\codeguard.bootstrap.err"
+set "APP_ARGS=%*"
+if "%CODEGUARD_START_WAIT_SECONDS%"=="" set "CODEGUARD_START_WAIT_SECONDS=4"
+
+if not exist "%JAR_FILE%" (
+  echo Jar file not found: "%JAR_FILE%"
+  exit /b 1
 )
-BAT
+
+if exist "%PID_FILE%" (
+  set /p OLD_PID=<"%PID_FILE%"
+  if not "!OLD_PID!"=="" (
+    set "APP_PID=!OLD_PID!"
+    powershell -NoProfile -ExecutionPolicy Bypass -Command "\$pidValue = [int]\$env:APP_PID; \$jar = \$env:JAR_FILE; \$process = Get-CimInstance Win32_Process | Where-Object { \$_.ProcessId -eq \$pidValue }; if (\$process -and ((-not \$process.CommandLine) -or (\$process.CommandLine -like ('*' + \$jar + '*')))) { exit 0 } else { exit 1 }" >nul 2>nul
+    if !ERRORLEVEL! EQU 0 (
+      echo CodeGuard is already running, pid=!OLD_PID!
+      exit /b 0
+    )
+  )
+  del /f /q "%PID_FILE%" >nul 2>nul
+)
+
+if not exist "%LOG_DIR%" mkdir "%LOG_DIR%"
+if not exist "%CD%\\config\\workspace" mkdir "%CD%\\config\\workspace"
+if not exist "%CD%\\config\\repositories" mkdir "%CD%\\config\\repositories"
+if not exist "%CD%\\config\\scans" mkdir "%CD%\\config\\scans"
+
+powershell -NoProfile -ExecutionPolicy Bypass -Command "\$jar = \$env:JAR_FILE; \$appArgs = \$env:APP_ARGS; \$quote = [char]34; \$argLine = '-jar ' + \$quote + \$jar + \$quote; if (\$appArgs) { \$argLine = \$argLine + ' ' + \$appArgs }; \$process = Start-Process -FilePath 'java' -ArgumentList \$argLine -WorkingDirectory \$env:APP_DIR -RedirectStandardOutput \$env:BOOTSTRAP_OUT_FILE -RedirectStandardError \$env:BOOTSTRAP_ERR_FILE -WindowStyle Hidden -PassThru; \$process.Id" > "%PID_FILE%"
+
+if errorlevel 1 (
+  del /f /q "%PID_FILE%" >nul 2>nul
+  echo CodeGuard failed to start.
+  exit /b 1
+)
+
+set /p APP_PID=<"%PID_FILE%"
+timeout /t %CODEGUARD_START_WAIT_SECONDS% /nobreak >nul
+powershell -NoProfile -ExecutionPolicy Bypass -Command "if (Get-Process -Id %APP_PID% -ErrorAction SilentlyContinue) { exit 0 } else { exit 1 }" >nul 2>nul
+if errorlevel 1 (
+  del /f /q "%PID_FILE%" >nul 2>nul
+  echo CodeGuard failed to start. Recent log output:
+  powershell -NoProfile -ExecutionPolicy Bypass -Command "if (Test-Path \$env:BOOTSTRAP_ERR_FILE) { Get-Content \$env:BOOTSTRAP_ERR_FILE -Tail 80 }; if (Test-Path \$env:BOOTSTRAP_OUT_FILE) { Get-Content \$env:BOOTSTRAP_OUT_FILE -Tail 80 }"
+  exit /b 1
+)
+
+echo CodeGuard started, pid=%APP_PID%
+echo Bootstrap log: %BOOTSTRAP_OUT_FILE%
+echo Bootstrap error log: %BOOTSTRAP_ERR_FILE%
+echo Admin URL: http://localhost:9997/admin
+RUNBATEOF
+
+cat > "$STAGING_DIR/stop.bat" <<STOPBATEOF
+@echo off
+setlocal EnableExtensions EnableDelayedExpansion
+cd /d "%~dp0"
+
+set "APP_NAME=${APP_NAME}"
+set "JAR_FILE=%CD%\\%APP_NAME%.jar"
+set "PID_FILE=%CD%\\codeguard.pid"
+set "STOPPED=false"
+
+if exist "%PID_FILE%" (
+  set /p APP_PID=<"%PID_FILE%"
+  if not "!APP_PID!"=="" (
+    powershell -NoProfile -ExecutionPolicy Bypass -Command "\$pidValue = [int]\$env:APP_PID; \$jar = \$env:JAR_FILE; \$process = Get-CimInstance Win32_Process | Where-Object { \$_.ProcessId -eq \$pidValue }; if (\$process -and ((-not \$process.CommandLine) -or (\$process.CommandLine -like ('*' + \$jar + '*')))) { Stop-Process -Id \$pidValue -Force; exit 0 } else { exit 1 }" >nul 2>nul
+    if !ERRORLEVEL! EQU 0 (
+      echo CodeGuard stopped, pid=!APP_PID!
+      set "STOPPED=true"
+    )
+  )
+  del /f /q "%PID_FILE%" >nul 2>nul
+)
+
+if "%STOPPED%"=="false" (
+  powershell -NoProfile -ExecutionPolicy Bypass -Command "\$jar = '%JAR_FILE%'; \$processes = Get-CimInstance Win32_Process | Where-Object { \$_.CommandLine -like ('*' + \$jar + '*') }; if (\$processes) { \$processes | ForEach-Object { Stop-Process -Id \$_.ProcessId -Force }; exit 0 } else { exit 1 }" >nul 2>nul
+  if !ERRORLEVEL! EQU 0 (
+    echo CodeGuard stopped
+    set "STOPPED=true"
+  )
+)
+
+if "%STOPPED%"=="false" (
+  echo CodeGuard is not running
+)
+STOPBATEOF
+
 convert_to_crlf "$STAGING_DIR/run.bat"
 convert_to_crlf "$STAGING_DIR/stop.bat"
 
@@ -172,10 +250,28 @@ convert_to_crlf "$STAGING_DIR/stop.bat"
 (cd "$DIST_ROOT" && tar -czf "${APP_NAME}.tar.gz" "$APP_NAME" && zip -qr "${APP_NAME}.zip" "$APP_NAME")
 cp "${DIST_ROOT}/${APP_NAME}.tar.gz" "${ROOT_DIR}/target/"
 cp "${DIST_ROOT}/${APP_NAME}.zip" "${ROOT_DIR}/target/"
+
+# SHA-256 校验和（jar / tar.gz / zip）
+generate_sha256() {
+  local file=$1
+  if command -v shasum >/dev/null 2>&1; then
+    (cd "$(dirname "$file")" && shasum -a 256 "$(basename "$file")" > "$(basename "$file").sha256")
+  elif command -v sha256sum >/dev/null 2>&1; then
+    (cd "$(dirname "$file")" && sha256sum "$(basename "$file")" > "$(basename "$file").sha256")
+  fi
+}
+generate_sha256 "${ROOT_DIR}/target/${APP_NAME}.jar"
+generate_sha256 "${ROOT_DIR}/target/${APP_NAME}.tar.gz"
+generate_sha256 "${ROOT_DIR}/target/${APP_NAME}.zip"
+cp "${ROOT_DIR}/target/${APP_NAME}.tar.gz.sha256" "${DIST_ROOT}/" 2>/dev/null || true
+cp "${ROOT_DIR}/target/${APP_NAME}.zip.sha256" "${DIST_ROOT}/" 2>/dev/null || true
+cp "${ROOT_DIR}/target/${APP_NAME}.jar.sha256" "${DIST_ROOT}/" 2>/dev/null || true
+
 echo ""
 echo "构建完成："
 echo "  ${ROOT_DIR}/target/${APP_NAME}.jar"
 echo "  ${ROOT_DIR}/target/${APP_NAME}.tar.gz"
 echo "  ${ROOT_DIR}/target/${APP_NAME}.zip"
+echo "  ${ROOT_DIR}/target/${APP_NAME}.sha256（jar / tar.gz / zip）"
 echo ""
 echo "运行：tar -xzf target/${APP_NAME}.tar.gz && cd ${APP_NAME} && ./run.sh"

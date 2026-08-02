@@ -139,10 +139,6 @@ public class SastRuleEngine {
         return new ArrayList<>(allFindings);
     }
 
-    public List<ScanFinding> scan(Path root, String projectId, String scanId, ScanProgressListener listener) {
-        return scan(root, projectId, scanId, listener, new java.util.concurrent.atomic.AtomicBoolean(false));
-    }
-
     private void scanFile(Path root, Path file, String projectId, String scanId,
                           ScanProgressListener listener, java.util.concurrent.ConcurrentLinkedQueue<ScanFinding> out) {
         String lang = languageOf(file);

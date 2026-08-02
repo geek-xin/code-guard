@@ -16,10 +16,6 @@ public class VulnDbController {
 
     private final VulnDbUpdateService updateService;
 
-    public VulnDbUpdateService getUpdateService() {
-        return updateService;
-    }
-
     public VulnDbController(VulnDbUpdateService updateService) {
         this.updateService = updateService;
     }

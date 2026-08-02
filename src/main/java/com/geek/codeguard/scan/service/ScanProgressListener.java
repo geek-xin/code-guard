@@ -15,6 +15,4 @@ public interface ScanProgressListener {
     default void onFinding(ScanFinding finding) {
     }
 
-    default void onMessage(String type, String message) {
-    }
 }

@@ -52,42 +52,6 @@ public class ReviewAgentService {
                 && cfg.getApiKey() != null && !cfg.getApiKey().isBlank();
     }
 
-    /** 返回 Markdown 审查报告；失败或未配置时返回 null */
-    public String review(String projectName, List<ScanFinding> findings) {
-        if (!isConfigured()) {
-            return null;
-        }
-        try {
-            Settings.Agent cfg = settingsService.effectiveAgent();
-            String prompt = buildPrompt(projectName, findings);
-            String endpoint = cfg.getBaseUrl().replaceAll("/+$", "") + "/chat/completions";
-            Map<String, Object> body = new LinkedHashMap<>();
-            body.put("model", cfg.getModel());
-            body.put("temperature", 0.2);
-            body.put("messages", List.of(
-                    Map.of("role", "system", "content", SYSTEM_PROMPT),
-                    Map.of("role", "user", "content", prompt)
-            ));
-            HttpRequest req = HttpRequest.newBuilder(URI.create(endpoint))
-                    .header("Authorization", "Bearer " + cfg.getApiKey())
-                    .header("Content-Type", "application/json")
-                    .timeout(Duration.ofMillis(props.getAgent().getTimeoutMs()))
-                    .POST(HttpRequest.BodyPublishers.ofString(mapper.writeValueAsString(body)))
-                    .build();
-            HttpResponse<String> resp = http.send(req, HttpResponse.BodyHandlers.ofString());
-            if (resp.statusCode() != 200) {
-                log.warn("Review Agent 调用失败: HTTP {}", resp.statusCode());
-                return null;
-            }
-            var node = mapper.readTree(resp.body());
-            String content = node.path("choices").path(0).path("message").path("content").asText(null);
-            return content == null || content.isBlank() ? null : content;
-        } catch (Exception e) {
-            log.warn("Review Agent 异常: {}", e.getMessage());
-            return null;
-        }
-    }
-
     /**
      * 流式审查：stream=true 逐 token 回调 onDelta（用于前端实时打印思考过程）。
      * 返回完整 Markdown 内容。

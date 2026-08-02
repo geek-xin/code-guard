@@ -52,12 +52,12 @@ public class DependencyParser {
     private List<Dependency> parsePackageJson(Path file) throws IOException {
         List<Dependency> deps = new ArrayList<>();
         JsonNode root = jsonStore.mapper().readTree(Files.readString(file));
-        collectDeps(root, "dependencies", "npm", file, deps, false);
-        collectDeps(root, "devDependencies", "npm", file, deps, false);
+        collectDeps(root, "dependencies", "npm", file, deps);
+        collectDeps(root, "devDependencies", "npm", file, deps);
         return deps;
     }
 
-    private void collectDeps(JsonNode root, String field, String ecosystem, Path file, List<Dependency> out, boolean transitive) {
+    private void collectDeps(JsonNode root, String field, String ecosystem, Path file, List<Dependency> out) {
         JsonNode node = root.path(field);
         if (node.isObject()) {
             node.fields().forEachRemaining(e -> {
@@ -67,7 +67,6 @@ public class DependencyParser {
                         .name(e.getKey())
                         .version(version)
                         .manifest(rel(file))
-                        .transitive(transitive)
                         .build());
             });
         }
@@ -204,8 +203,8 @@ public class DependencyParser {
     private List<Dependency> parseComposer(Path file) throws IOException {
         List<Dependency> deps = new ArrayList<>();
         JsonNode root = jsonStore.mapper().readTree(Files.readString(file));
-        collectDeps(root, "require", "Packagist", file, deps, false);
-        collectDeps(root, "require-dev", "Packagist", file, deps, false);
+        collectDeps(root, "require", "Packagist", file, deps);
+        collectDeps(root, "require-dev", "Packagist", file, deps);
         return deps;
     }
 

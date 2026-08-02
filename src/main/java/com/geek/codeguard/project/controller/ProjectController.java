@@ -63,7 +63,7 @@ public class ProjectController {
 
     @GetMapping
     public Mono<Result<List<Project>>> list() {
-        return Mono.just(Result.success(projectService.listWithStats()));
+        return Mono.just(Result.success(projectService.list()));
     }
 
     @GetMapping("/{id}")

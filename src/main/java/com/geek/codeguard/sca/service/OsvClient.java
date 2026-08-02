@@ -1,8 +1,6 @@
 package com.geek.codeguard.sca.service;
 
 import com.fasterxml.jackson.databind.JsonNode;
-import com.geek.codeguard.common.enums.ErrorCodeEnum;
-import com.geek.codeguard.common.exception.BusinessException;
 import com.geek.codeguard.config.CodeGuardProperties;
 import com.geek.codeguard.config.JsonStore;
 import com.geek.codeguard.sca.model.Vulnerability;
@@ -103,15 +101,6 @@ public class OsvClient {
         }
     }
 
-    public List<Vulnerability> query(String ecosystem, String name, String version) {
-        try {
-            return queryAsync(ecosystem, name, version).get(props.getSca().getOsvTimeoutMs() + 3000, TimeUnit.MILLISECONDS);
-        } catch (Exception e) {
-            log.debug("OSV 查询失败 {}: {}", name, e.getMessage());
-            return List.of();
-        }
-    }
-
     private List<Vulnerability> doQuery(String cacheKey, String ecosystem, String name, String version) {
         if (memoryCache.containsKey(cacheKey)) {
             return memoryCache.get(cacheKey);
@@ -149,8 +138,6 @@ public class OsvClient {
             } finally {
                 limiter.release();
             }
-        } catch (BusinessException e) {
-            throw e;
         } catch (Exception e) {
             log.debug("OSV 查询异常 {}: {}", name, e.getMessage());
             return List.of();

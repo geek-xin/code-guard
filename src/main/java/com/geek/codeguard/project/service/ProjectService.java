@@ -12,7 +12,6 @@ import org.springframework.util.StringUtils;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.Instant;
-import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
 
@@ -199,12 +198,4 @@ public class ProjectService {
         save(p);
     }
 
-    /** 项目级统计汇总（供列表展示） */
-    public List<Project> listWithStats() {
-        return list();
-    }
-
-    public static List<String> normalizeTokenMask(Project p) {
-        return new ArrayList<>();
-    }
 }
