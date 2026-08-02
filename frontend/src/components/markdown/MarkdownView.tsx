@@ -17,19 +17,23 @@ export default function MarkdownView({ content, className }: { content: string; 
 }
 
 function splitBlocks(content: string): string[] {
-  // 按代码块分割，保留标记
+  // 按代码块分割：代码块整体作为一个块（```语言 + 内容 + ```），避免内容被行内解析
   const parts: string[] = [];
   let current = '';
   let inCode = false;
   const lines = content.split('\n');
   for (const line of lines) {
     if (line.trim().startsWith('```')) {
-      if (current.trim() || inCode) {
+      if (!inCode) {
+        if (current.trim()) parts.push(current);
+        current = line + '\n';
+        inCode = true;
+      } else {
+        current += line + '\n';
         parts.push(current);
         current = '';
+        inCode = false;
       }
-      parts.push(line);
-      inCode = !inCode;
       continue;
     }
     current += line + '\n';
