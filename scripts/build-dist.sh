@@ -25,6 +25,7 @@ Usage: scripts/build-dist.sh [--with-tests]
   - config/application.yml（外部配置）
   - config/vulndb/codeguard-vulndb.json（离线漏洞库种子）
   - README.md
+  - LICENSE（MIT）
 
 选项：
   --with-tests  执行 Maven 测试阶段
@@ -86,6 +87,9 @@ if [[ -f "$VULNDB_DIR/codeguard-vulndb.json" ]]; then
 fi
 if [[ -f README.md ]]; then
   cp README.md "$STAGING_DIR/"
+fi
+if [[ -f LICENSE ]]; then
+  cp LICENSE "$STAGING_DIR/"
 fi
 
 # run.sh / stop.sh（Linux/macOS）
