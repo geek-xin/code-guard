@@ -6,7 +6,7 @@
 
 <p align="center">
   <a href="https://spring.io/projects/spring-boot"><img alt="Spring Boot" src="https://img.shields.io/badge/Spring%20Boot-3.5.2-6DB33F?style=flat-square&logo=springboot&logoColor=white"></a>
-  <img alt="Release" src="https://img.shields.io/badge/Release-0.1.0-111827?style=flat-square">
+  <img alt="Release" src="https://img.shields.io/badge/Release-0.1.1-111827?style=flat-square">
   <img alt="Java 21" src="https://img.shields.io/badge/Java-21-007396?style=flat-square&logo=openjdk&logoColor=white">
   <img alt="Maven" src="https://img.shields.io/badge/Maven-build-C71A36?style=flat-square&logo=apachemaven&logoColor=white">
   <img alt="React" src="https://img.shields.io/badge/UI-React%2019%20%2B%20Vite%207-149ECA?style=flat-square&logo=react&logoColor=white">
@@ -29,7 +29,7 @@
 **静态代码分析（SAST）**、**依赖漏洞扫描（SCA，含 CVE 与修复版本）** 与 **AI 代码审查（可选）**，
 实时推送扫描进度，按漏洞等级汇总并给出**解决方案**，可导出 **PDF / Word / Excel / HTML / Markdown / JSON** 扫描报告。
 
-当前版本：`0.1.0`。
+当前版本：`0.1.1`。
 
 前端与后端架构参考 `web-sim`（Spring Boot WebFlux + React 19/Vite/Tailwind + Radix、卡片式 clay/chunky 视觉、本地 JSON 存储）。
 
@@ -181,18 +181,18 @@ npm run dev
 scripts/build-dist.sh [--with-tests]
 
 # 产物
-target/codeguard-0.1.0.jar          # 可执行 Spring Boot jar
-target/codeguard-0.1.0.tar.gz       # Linux/macOS 发布包
-target/codeguard-0.1.0.zip          # Windows 发布包
+target/codeguard-0.1.1.jar          # 可执行 Spring Boot jar
+target/codeguard-0.1.1.tar.gz       # Linux/macOS 发布包
+target/codeguard-0.1.1.zip          # Windows 发布包
 
 # 运行发布包（Linux/macOS）
-tar -xzf target/codeguard-0.1.0.tar.gz
-cd codeguard-0.1.0
+tar -xzf target/codeguard-0.1.1.tar.gz
+cd codeguard-0.1.1
 ./run.sh        # 启动（日志在 logs/）
 ./stop.sh       # 停止
 
 # Windows
-# 解压 target/codeguard-0.1.0.zip 后执行 run.bat / stop.bat
+# 解压 target/codeguard-0.1.1.zip 后执行 run.bat / stop.bat
 ```
 
 ## 配置说明
