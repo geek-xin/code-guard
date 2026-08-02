@@ -55,6 +55,7 @@ public class ProjectController {
         private List<String> emails;
         private boolean autoSyncEnabled = true;
         private Integer syncIntervalMinutes;
+        private boolean agentReviewEnabled;
         private boolean autoScanEnabled = true;
         private Integer scanIntervalMinutes;
         private boolean enabled = true;
@@ -91,6 +92,7 @@ public class ProjectController {
                             .map(String::trim).filter(e -> !e.isBlank()).toList())
                     .autoSyncEnabled(req.isAutoSyncEnabled())
                     .syncIntervalMinutes(req.getSyncIntervalMinutes())
+                    .agentReviewEnabled(req.isAgentReviewEnabled())
                     .autoScanEnabled(req.isAutoScanEnabled())
                     .scanIntervalMinutes(req.getScanIntervalMinutes())
                     .enabled(req.isEnabled())
@@ -119,6 +121,7 @@ public class ProjectController {
                     .emails(req.getEmails())
                     .autoSyncEnabled(req.isAutoSyncEnabled())
                     .syncIntervalMinutes(req.getSyncIntervalMinutes())
+                    .agentReviewEnabled(req.isAgentReviewEnabled())
                     .autoScanEnabled(req.isAutoScanEnabled())
                     .scanIntervalMinutes(req.getScanIntervalMinutes())
                     .enabled(req.isEnabled())

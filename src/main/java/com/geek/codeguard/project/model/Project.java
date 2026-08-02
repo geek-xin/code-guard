@@ -49,6 +49,8 @@ public class Project {
     private Integer syncIntervalMinutes;
     /** 上次同步时间 */
     private Instant lastSyncAt;
+    /** 扫描时是否自动执行 AI 审查（默认关闭） */
+    private boolean agentReviewEnabled;
     /** 是否开启漏洞自动扫描（默认每 3 小时一次） */
     private boolean autoScanEnabled;
     /** 漏洞自动扫描间隔（分钟），默认 180（3 小时） */

@@ -109,6 +109,7 @@ public class ProjectService {
         if (update.getSyncIntervalMinutes() != null && update.getSyncIntervalMinutes() > 0) {
             existing.setSyncIntervalMinutes(update.getSyncIntervalMinutes());
         }
+        if (update.isAgentReviewEnabled() != existing.isAgentReviewEnabled()) existing.setAgentReviewEnabled(update.isAgentReviewEnabled());
         if (update.isAutoScanEnabled() != existing.isAutoScanEnabled()) existing.setAutoScanEnabled(update.isAutoScanEnabled());
         if (update.getScanIntervalMinutes() != null && update.getScanIntervalMinutes() > 0) {
             existing.setScanIntervalMinutes(update.getScanIntervalMinutes());

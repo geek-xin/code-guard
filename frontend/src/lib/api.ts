@@ -140,6 +140,7 @@ export interface Project {
   lastSyncAt?: string;
   autoScanEnabled?: boolean;
   scanIntervalMinutes?: number;
+  agentReviewEnabled?: boolean;
   enabled: boolean;
   syncStatus: string;
   syncMessage?: string;

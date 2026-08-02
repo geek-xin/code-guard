@@ -201,7 +201,9 @@ public class ScanService implements ScanProgressListener {
             }
             if (cancelled(scanId)) { finishStopped(scanId, record); return; }
 
-            if (activeScopes.contains("AGENT")) {
+            boolean agentRequested = activeScopes.contains("AGENT")
+                    && (project.isAgentReviewEnabled() || !"ALL".equalsIgnoreCase(scope));
+            if (agentRequested) {
                 updateStage(record, "AGENT", "RUNNING", "Code Review Agent 正在生成审查意见...");
                 emit(scanId, "stage", Map.of("stage", "AGENT", "status", "RUNNING"));
                 // 流式调用：每个 token 前检查取消，支持停止扫描时中断 AI 审查
@@ -227,7 +229,8 @@ public class ScanService implements ScanProgressListener {
                     updateStage(record, "AGENT", "COMPLETED", "未配置 Agent API Key 或调用失败，已跳过");
                 }
             } else {
-                updateStage(record, "AGENT", "COMPLETED", "已跳过");
+                updateStage(record, "AGENT", "COMPLETED",
+                        project.isAgentReviewEnabled() ? "已跳过" : "项目未开启 AI 审查（可在项目配置中开启）");
             }
 
             // ---------- 收尾 ----------
