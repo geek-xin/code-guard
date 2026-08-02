@@ -270,6 +270,17 @@ export default function SettingsPage() {
               <span className="ml-2 text-xs font-bold text-ink">SSL（465 端口默认开启；587 用 STARTTLS 请关闭）</span>
             </div>
           </div>
+
+          {/* SMTP 保存 */}
+          <div className="flex items-center gap-2">
+            <Button onClick={save} disabled={saving}>
+              {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
+              保存配置
+            </Button>
+            <Button variant="ghost" onClick={load}>
+              <RefreshCw className="h-4 w-4" /> 刷新
+            </Button>
+          </div>
         </CardContent>
       </Card>
 

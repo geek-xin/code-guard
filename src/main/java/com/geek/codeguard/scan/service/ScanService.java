@@ -188,7 +188,8 @@ public class ScanService implements ScanProgressListener {
             if (activeScopes.contains("SAST")) {
                 try {
                     findings.addAll(sastRuleEngine.scan(root, project.getId(), scanId, this, cancelFlags.get(scanId)));
-                } catch (java.util.concurrent.CancellationException ce) {
+                } catch (Exception ce) {
+                    // CompletionException 可能包装 CancellationException：只要已标记取消就按停止处理
                     if (cancelled(scanId)) {
                         finishStopped(scanId, record);
                         return;
@@ -203,10 +204,25 @@ public class ScanService implements ScanProgressListener {
             if (activeScopes.contains("AGENT")) {
                 updateStage(record, "AGENT", "RUNNING", "Code Review Agent 正在生成审查意见...");
                 emit(scanId, "stage", Map.of("stage", "AGENT", "status", "RUNNING"));
-                String review = reviewAgentService.review(project.getName(), findings);
-                if (review != null) {
+                // 流式调用：每个 token 前检查取消，支持停止扫描时中断 AI 审查
+                String review;
+                try {
+                    review = reviewAgentService.streamReview(project.getName(), findings, delta -> {
+                        if (cancelled(scanId)) {
+                            throw new RuntimeException("扫描已停止，AI 审查中断");
+                        }
+                    }, cancelFlags.get(scanId));
+                } catch (Exception e) {
+                    review = null;
+                }
+                if (cancelled(scanId)) {
+                    finishStopped(scanId, record);
+                    return;
+                }
+                if (review != null && !review.isBlank()) {
                     record.setAgentReview(review);
                     emit(scanId, "agent-review", Map.of("content", review));
+                    updateStage(record, "AGENT", "COMPLETED", "AI 审查完成");
                 } else {
                     updateStage(record, "AGENT", "COMPLETED", "未配置 Agent API Key 或调用失败，已跳过");
                 }
@@ -215,6 +231,10 @@ public class ScanService implements ScanProgressListener {
             }
 
             // ---------- 收尾 ----------
+            if (cancelled(scanId)) {
+                finishStopped(scanId, record);
+                return;
+            }
             Map<String, Object> summary = buildSummary(record, findings);
             record.setSummary(summary);
             record.setStatus("COMPLETED");

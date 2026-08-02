@@ -17,6 +17,10 @@ import java.io.BufferedReader;
 import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.nio.charset.StandardCharsets;
+import java.util.concurrent.Executors;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -89,9 +93,16 @@ public class ReviewAgentService {
      * 返回完整 Markdown 内容。
      */
     public String streamReview(String projectName, List<ScanFinding> findings, Consumer<String> onDelta) {
+        return streamReview(projectName, findings, onDelta, null);
+    }
+
+    /** cancelled 非空时：取消监控线程每 500ms 检查，取消则关闭响应流中断读取 */
+    public String streamReview(String projectName, List<ScanFinding> findings, Consumer<String> onDelta,
+                               AtomicBoolean cancelled) {
         if (!isConfigured()) {
             return null;
         }
+        ScheduledExecutorService monitor = null;
         try {
             Settings.Agent cfg = settingsService.effectiveAgent();
             String prompt = buildPrompt(projectName, findings);
@@ -114,6 +125,23 @@ public class ReviewAgentService {
                 String err = new String(resp.body().readAllBytes(), StandardCharsets.UTF_8);
                 log.warn("Agent 流式调用失败: HTTP {} - {}", resp.statusCode(), err);
                 return null;
+            }
+            // 取消监控：取消时关闭响应流，readLine 立即中断
+            if (cancelled != null) {
+                monitor = Executors.newSingleThreadScheduledExecutor(r -> {
+                    Thread t = new Thread(r, "agent-cancel-monitor");
+                    t.setDaemon(true);
+                    return t;
+                });
+                InputStream respBody = resp.body();
+                monitor.scheduleAtFixedRate(() -> {
+                    if (cancelled.get()) {
+                        try {
+                            respBody.close();
+                        } catch (Exception ignored) {
+                        }
+                    }
+                }, 300, 300, TimeUnit.MILLISECONDS);
             }
             StringBuilder full = new StringBuilder();
             try (BufferedReader reader = new BufferedReader(new InputStreamReader(resp.body(), StandardCharsets.UTF_8))) {
@@ -148,8 +176,12 @@ public class ReviewAgentService {
             }
             return full.toString();
         } catch (Exception e) {
-            log.warn("Agent 流式调用异常: {}", e.getMessage());
+            log.debug("Agent 流式调用结束: {}", e.getMessage());
             return null;
+        } finally {
+            if (monitor != null) {
+                monitor.shutdownNow();
+            }
         }
     }
 
