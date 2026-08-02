@@ -19,8 +19,8 @@ export function TrendChart({ data }: { data: TrendPoint[] }) {
   const step = data.length > 1 ? innerW / (data.length - 1) : innerW;
 
   return (
-    <div className="w-full overflow-x-auto">
-      <svg viewBox={`0 0 ${W} ${H}`} className="w-full min-w-[560px]">
+    <div className="w-full">
+      <svg viewBox={`0 0 ${W} ${H}`} className="block w-full" preserveAspectRatio="xMidYMid meet">
         {/* 网格线 */}
         {[0, 0.25, 0.5, 0.75, 1].map((r) => {
           const y = padT + innerH - innerH * r;
