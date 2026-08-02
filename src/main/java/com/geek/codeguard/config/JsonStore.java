@@ -3,6 +3,7 @@ package com.geek.codeguard.config;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.SerializationFeature;
+import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 import com.fasterxml.jackson.dataformat.xml.XmlMapper;
 import jakarta.annotation.PostConstruct;
@@ -34,6 +35,9 @@ public class JsonStore {
         this.mapper = new ObjectMapper();
         this.mapper.registerModule(new JavaTimeModule());
         this.mapper.disable(SerializationFeature.WRITE_DATES_AS_TIMESTAMPS);
+        // 本地 JSON 存储是长期运行产物：模型重构移除字段后，旧数据文件仍可能保留这些字段。
+        // 读取时忽略未知字段，避免单个历史文件导致整个模块（如总览/扫描记录）无法加载。
+        this.mapper.disable(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES);
         this.mapper.setTimeZone(java.util.TimeZone.getTimeZone("Asia/Shanghai"));
         this.xmlMapper = new XmlMapper();
     }

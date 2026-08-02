@@ -12,6 +12,7 @@ import com.geek.codeguard.sast.service.SastRuleEngine;
 import com.geek.codeguard.sca.service.ScaService;
 import com.geek.codeguard.scan.model.ScanFinding;
 import com.geek.codeguard.scan.model.ScanRecord;
+import jakarta.annotation.PostConstruct;
 import jakarta.annotation.PreDestroy;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -103,6 +104,57 @@ public class ScanService implements ScanProgressListener {
     @PreDestroy
     public void shutdown() {
         executor.shutdownNow();
+    }
+
+    /**
+     * 服务启动时清理上次进程中断（崩溃/强杀）遗留的 RUNNING 扫描记录，
+     * 避免总览“运行中”数量与扫描历史被僵尸记录污染。
+     */
+    @PostConstruct
+    public void reconcileInterruptedScans() {
+        try {
+            int fixed = 0;
+            for (ScanRecord record : listScans(null)) {
+                if (!"RUNNING".equals(record.getStatus())) {
+                    continue;
+                }
+                record.setStatus("FAILED");
+                record.setMessage("服务重启，扫描中断");
+                record.setFinishedAt(now());
+                if (record.getStartedAt() != null) {
+                    try {
+                        record.setDurationMs((int) Instant.parse(record.getStartedAt())
+                                .until(Instant.now(), java.time.temporal.ChronoUnit.MILLIS));
+                    } catch (Exception ignored) {
+                        // 时间格式异常时保留原 durationMs
+                    }
+                }
+                // 中断时正在运行的阶段一并标记为失败
+                if (record.getStages() != null) {
+                    record.getStages().values().forEach(sp -> {
+                        if (sp != null && "RUNNING".equals(sp.getStatus())) {
+                            sp.setStatus("FAILED");
+                            sp.setMessage("服务重启，扫描中断");
+                        }
+                    });
+                }
+                saveRecord(record);
+                // 若该项目的最近一次扫描就是这条中断记录，同步项目状态
+                projectService.find(record.getProjectId()).ifPresent(p -> {
+                    if (record.getId().equals(p.getLastScanId())) {
+                        p.setLastScanStatus("FAILED");
+                        p.setSyncMessage("服务重启，扫描中断");
+                        projectService.save(p);
+                    }
+                });
+                fixed++;
+            }
+            if (fixed > 0) {
+                log.warn("启动时清理 {} 条上次中断的扫描记录", fixed);
+            }
+        } catch (Exception e) {
+            log.warn("启动时清理中断扫描记录失败: {}", e.getMessage());
+        }
     }
 
     // ============ 启动扫描 ============
