@@ -87,7 +87,8 @@ public class ScanService implements ScanProgressListener {
     /** AI 审查任务（内存级，跨会话可见） */
     public static class AgentReviewJob {
         public final String scanId;
-        public volatile String status = "RUNNING"; // RUNNING / COMPLETED / FAILED
+        public volatile String status = "RUNNING"; // RUNNING / COMPLETED / FAILED / CANCELLED
+        public volatile boolean cancelled;
         public volatile String error;
         public final StringBuilder thinking = new StringBuilder();
         public volatile String content;
@@ -289,6 +290,11 @@ public class ScanService implements ScanProgressListener {
         if (flag != null) {
             flag.set(true);
         }
+        // 联动停止该扫描的 AI 审查任务
+        try {
+            stopAgentReview(scanId);
+        } catch (Exception ignored) {
+        }
     }
 
     // ============ 进度回调 ============
@@ -430,9 +436,15 @@ public class ScanService implements ScanProgressListener {
             List<ScanFinding> findings = getFindings(scanId, null, null, null, null);
             emitAgent(sink, "thinking", Map.of("delta", "漏洞清单已就绪（共 " + findings.size() + " 条），正在生成审查意见...\n"));
             String full = reviewAgentService.streamReview(record.getProjectName(), findings, delta -> {
+                if (job.cancelled) {
+                    throw new RuntimeException("AI 审查已取消");
+                }
                 job.thinking.append(delta);
                 emitAgent(sink, "thinking", Map.of("delta", delta));
             });
+            if (job.cancelled) {
+                return; // 已在 stopAgentReview 中置为 CANCELLED 并发事件
+            }
             if (full == null || full.isBlank()) {
                 job.status = "FAILED";
                 job.error = "AI 审查调用失败，请检查 API Key 与网络后重试";
@@ -451,6 +463,20 @@ public class ScanService implements ScanProgressListener {
             job.finishedAt = System.currentTimeMillis();
             emitAgent(sink, "error", Map.of("message", job.error));
         }
+    }
+
+    /** 停止 AI 审查任务（与停止扫描联动） */
+    public Map<String, Object> stopAgentReview(String scanId) {
+        AgentReviewJob job = agentJobs.get(scanId);
+        if (job != null && "RUNNING".equals(job.status)) {
+            job.cancelled = true;
+            job.status = "CANCELLED";
+            job.finishedAt = System.currentTimeMillis();
+            Sinks.Many<Map<String, Object>> sink = agentJobSinks.get(scanId);
+            emitAgent(sink, "cancelled", Map.of("status", "CANCELLED", "message", "AI 审查已停止"));
+            return Map.of("status", "CANCELLED");
+        }
+        return agentReviewStatus(scanId);
     }
 
     /** 查询审查任务状态（跨会话可见） */

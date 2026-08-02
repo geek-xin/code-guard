@@ -1,5 +1,6 @@
-import { useCallback, useEffect, useState } from 'react';
-import { Plus, RefreshCw, ScanSearch, Pencil, Trash2, FolderGit2, Github, Gitlab, FolderOpen, Clock, Mail, Search } from 'lucide-react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
+import { Plus, RefreshCw, ScanSearch, Pencil, Trash2, FolderGit2, Github, Gitlab, FolderOpen, Clock, Mail, Search, Tags } from 'lucide-react';
+import GroupManageDialog from '@/features/groups/GroupManageDialog';
 import { api, Project } from '@/lib/api';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -27,6 +28,7 @@ export default function ProjectsPage() {
   const [deleting, setDeleting] = useState<Project | null>(null);
   const [busyId, setBusyId] = useState<string | null>(null);
   const [nameFilter, setNameFilter] = useState('');
+  const [groupManageOpen, setGroupManageOpen] = useState(false);
 
   const load = useCallback(() => {
     api.listProjects().then(setProjects).catch((e) => toast.error(e.message)).finally(() => setLoading(false));
@@ -79,6 +81,21 @@ export default function ProjectsPage() {
     return (p.name ?? '').toLowerCase().includes(q) || (p.alias ?? '').toLowerCase().includes(q);
   });
 
+  /** 按分组聚合（未分组放最后） */
+  const grouped = useMemo(() => {
+    const map = new Map<string, Project[]>();
+    for (const p of filteredProjects) {
+      const g = (p.group ?? '').trim() || '未分组';
+      if (!map.has(g)) map.set(g, []);
+      map.get(g)!.push(p);
+    }
+    return [...map.entries()].sort((a, b) => {
+      if (a[0] === '未分组') return 1;
+      if (b[0] === '未分组') return -1;
+      return a[0].localeCompare(b[0], 'zh-CN');
+    });
+  }, [filteredProjects]);
+
   const openCreate = () => {
     setEditing(null);
     setFormOpen(true);
@@ -111,6 +128,9 @@ export default function ProjectsPage() {
               className="w-52 pl-8"
             />
           </div>
+          <Button variant="outline" onClick={() => setGroupManageOpen(true)}>
+            <Tags className="h-4 w-4" /> 管理分组
+          </Button>
           <Button onClick={openCreate}>
             <Plus className="h-4 w-4" /> 添加项目
           </Button>
@@ -132,22 +152,37 @@ export default function ProjectsPage() {
           </CardContent>
         </Card>
       ) : (
-        <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
-          {filteredProjects.map((p) => (
-            <ProjectCard
-              key={p.id}
-              project={p}
-              busy={busyId === p.id}
-              onScan={() => scan(p)}
-              onSync={() => sync(p)}
-              onEdit={() => openEdit(p)}
-              onDelete={() => setDeleting(p)}
-            />
+        <div className="space-y-6">
+          {grouped.map(([groupName, groupProjects]) => (
+            <section key={groupName}>
+              <div className="mb-3 flex items-center gap-2">
+                <FolderGit2 className="h-4 w-4 text-primary" />
+                <h2 className="text-base font-black text-ink">{groupName}</h2>
+                <span className="rounded-full border-chunky border-ink bg-white px-2 py-0.5 text-xs font-black text-ink-muted shadow-chunky-sm">
+                  {groupProjects.length} 个工程
+                </span>
+              </div>
+              <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
+                {groupProjects.map((p) => (
+                  <ProjectCard
+                    key={p.id}
+                    project={p}
+                    busy={busyId === p.id}
+                    onScan={() => scan(p)}
+                    onSync={() => sync(p)}
+                    onEdit={() => openEdit(p)}
+                    onDelete={() => setDeleting(p)}
+                  />
+                ))}
+              </div>
+            </section>
           ))}
         </div>
       )}
 
       <ProjectFormDialog open={formOpen} onOpenChange={setFormOpen} project={editing} onSaved={load} />
+
+      <GroupManageDialog open={groupManageOpen} onOpenChange={setGroupManageOpen} onChanged={load} />
 
       <AlertDialog open={!!deleting} onOpenChange={(v) => !v && setDeleting(null)}>
         <AlertDialogContent>
@@ -169,6 +204,14 @@ export default function ProjectsPage() {
       </AlertDialog>
     </div>
   );
+}
+
+const TAG_COLORS = ['#CB3837', '#FF8A00', '#3775A9', '#00ADD8', '#D63384', '#7C3AED', '#18A96B', '#E9573F'];
+
+function tagColor(tag: string): string {
+  let h = 0;
+  for (let i = 0; i < tag.length; i++) h = (h * 31 + tag.charCodeAt(i)) >>> 0;
+  return TAG_COLORS[h % TAG_COLORS.length];
 }
 
 function ProjectCard({ project, busy, onScan, onSync, onEdit, onDelete }: {
@@ -221,6 +264,15 @@ function ProjectCard({ project, busy, onScan, onSync, onEdit, onDelete }: {
           {project.emailNotify && (
             <Badge variant="outline"><Mail className="h-3 w-3" /> 邮件报告</Badge>
           )}
+          {project.tags?.map((t) => (
+            <span
+              key={t}
+              className="inline-flex items-center rounded-full border-chunky border-ink px-2 py-0.5 text-[11px] font-black text-white"
+              style={{ background: tagColor(t) }}
+            >
+              {t}
+            </span>
+          ))}
         </div>
 
         {/* 最近扫描统计 */}

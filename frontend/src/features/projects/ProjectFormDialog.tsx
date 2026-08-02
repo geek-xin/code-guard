@@ -3,12 +3,13 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, Di
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
-import { Project, api } from '@/lib/api';
+import { Project, ProjectGroup, api } from '@/lib/api';
+import GroupManageDialog from '@/features/groups/GroupManageDialog';
 import { toast } from 'sonner';
 import { Loader2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import DirectoryPicker from '@/components/directory/DirectoryPicker';
-import { FolderOpen } from 'lucide-react';
+import { FolderOpen, Tag } from 'lucide-react';
 
 const SOURCES = [
   { key: 'GITHUB', label: 'GitHub 仓库', desc: '通过 HTTPS 克隆' },
@@ -31,6 +32,8 @@ export default function ProjectFormDialog({
   const [alias, setAlias] = useState('');
   const aliasTouched = useRef(false);
   const [description, setDescription] = useState('');
+  const [tags, setTags] = useState('');
+  const [group, setGroup] = useState('');
   const [source, setSource] = useState('GITHUB');
   const [repoUrl, setRepoUrl] = useState('');
   const [branch, setBranch] = useState('main');
@@ -47,6 +50,16 @@ export default function ProjectFormDialog({
   const [enabled, setEnabled] = useState(true);
   const [saving, setSaving] = useState(false);
   const [pickerOpen, setPickerOpen] = useState(false);
+  const [groups, setGroups] = useState<ProjectGroup[]>([]);
+  const [groupManageOpen, setGroupManageOpen] = useState(false);
+
+  const loadGroups = () => {
+    api.listGroups().then(setGroups).catch(() => {});
+  };
+
+  useEffect(() => {
+    if (open) loadGroups();
+  }, [open]);
 
   /** 从本地目录或仓库地址自动识别项目名（如 web-sim、org/repo.git -> repo） */
   const detectName = (value: string): string | null => {
@@ -62,6 +75,8 @@ export default function ProjectFormDialog({
       setName(project?.name ?? '');
       aliasTouched.current = false;
       setAlias(project?.alias ?? project?.name ?? '');
+      setTags(project?.tags?.join(', ') ?? '');
+      setGroup(project?.group ?? '');
       setDescription(project?.description ?? '');
       setSource(project?.source ?? 'GITHUB');
       setRepoUrl(project?.repoUrl ?? '');
@@ -87,6 +102,8 @@ export default function ProjectFormDialog({
       const data: Record<string, unknown> = {
         name,
         alias: alias.trim() || undefined,
+        tags: tags ? tags.split(/[,，;\n]/).map((t) => t.trim()).filter(Boolean) : undefined,
+        group: group.trim() || undefined,
         description,
         source,
         branch: source === 'LOCAL' ? undefined : branch,
@@ -160,6 +177,28 @@ export default function ProjectFormDialog({
               <label className="mb-1 block text-xs font-bold text-ink-muted">别名 *（展示用）</label>
               <Input value={alias} onChange={(e) => { aliasTouched.current = true; setAlias(e.target.value); }}
                 placeholder="例如：接口模拟器" required />
+            </div>
+            <div>
+              <label className="mb-1 block text-xs font-bold text-ink-muted">分组</label>
+              <div className="flex items-center gap-2">
+                <select
+                  value={group}
+                  onChange={(e) => setGroup(e.target.value)}
+                  className="h-9 w-full rounded-md border-chunky border-ink bg-white px-2 text-sm font-semibold text-ink focus:border-primary focus:outline-none"
+                >
+                  <option value="">未分组</option>
+                  {groups.map((g) => (
+                    <option key={g.id} value={g.name}>{g.name}</option>
+                  ))}
+                </select>
+                <Button type="button" variant="outline" size="icon" onClick={() => setGroupManageOpen(true)} title="管理分组">
+                  <Tag className="h-4 w-4" />
+                </Button>
+              </div>
+            </div>
+            <div>
+              <label className="mb-1 block text-xs font-bold text-ink-muted">标签</label>
+              <Input value={tags} onChange={(e) => setTags(e.target.value)} placeholder="多个用逗号分隔，如：核心, 高优先级" />
             </div>
             <div className="sm:col-span-2">
               <label className="mb-1 block text-xs font-bold text-ink-muted">描述</label>
@@ -304,6 +343,12 @@ export default function ProjectFormDialog({
               </div>
             )}
           </div>
+
+          <GroupManageDialog
+            open={groupManageOpen}
+            onOpenChange={setGroupManageOpen}
+            onChanged={loadGroups}
+          />
 
           <DirectoryPicker
             open={pickerOpen}

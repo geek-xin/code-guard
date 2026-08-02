@@ -19,6 +19,10 @@ public class Project {
     private String name;
     /** 显示别名（可选，手动填写） */
     private String alias;
+    /** 项目标签（多个） */
+    private List<String> tags;
+    /** 项目分组（如：前端/后端/基础设施） */
+    private String group;
     private String description;
     /** GITHUB / GITLAB / LOCAL */
     private String source;

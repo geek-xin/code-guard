@@ -74,6 +74,12 @@ public class ScanController {
         return Mono.fromCallable(() -> scanService.startAgentReview(id)).map(Result::success);
     }
 
+    /** 停止 AI 审查任务 */
+    @PostMapping("/{id}/agent-review/stop")
+    public Mono<Result<Map<String, Object>>> stopAgentReview(@PathVariable String id) {
+        return Mono.just(Result.success(scanService.stopAgentReview(id)));
+    }
+
     /** 查询 AI 审查任务状态 */
     @GetMapping("/{id}/agent-review/status")
     public Mono<Result<Map<String, Object>>> agentReviewStatus(@PathVariable String id) {

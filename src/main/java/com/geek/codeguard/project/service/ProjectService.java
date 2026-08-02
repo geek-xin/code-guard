@@ -77,6 +77,8 @@ public class ProjectService {
             validateAliasUnique(id, update.getAlias());
             existing.setAlias(update.getAlias());
         }
+        if (update.getTags() != null) existing.setTags(update.getTags());
+        if (update.getGroup() != null) existing.setGroup(update.getGroup());
         if (update.getName() != null) {
             list().stream().filter(p -> !p.getId().equals(id) && p.getName().equalsIgnoreCase(update.getName()))
                     .findFirst().ifPresent(p -> {

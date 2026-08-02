@@ -24,6 +24,13 @@ public class ProjectController {
         this.projectService = projectService;
     }
 
+    private static List<String> normalizeTags(List<String> tags) {
+        if (tags == null) {
+            return null;
+        }
+        return tags.stream().map(String::trim).filter(t -> !t.isBlank()).distinct().toList();
+    }
+
     private static String blankToNull(String s) {
         return s == null || s.isBlank() ? null : s.trim();
     }
@@ -33,6 +40,8 @@ public class ProjectController {
         @NotBlank(message = "项目名称不能为空")
         private String name;
         private String alias;
+        private List<String> tags;
+        private String group;
         private String description;
         @NotBlank(message = "源码来源不能为空")
         private String source;
@@ -67,6 +76,8 @@ public class ProjectController {
             Project project = Project.builder()
                     .name(req.getName().trim())
                     .alias(blankToNull(req.getAlias()))
+                    .tags(normalizeTags(req.getTags()))
+                    .group(blankToNull(req.getGroup()))
                     .description(req.getDescription())
                     .source(req.getSource().toUpperCase())
                     .repoUrl(req.getRepoUrl())
@@ -94,6 +105,8 @@ public class ProjectController {
             Project update = Project.builder()
                     .name(req.getName())
                     .alias(blankToNull(req.getAlias()))
+                    .tags(normalizeTags(req.getTags()))
+                    .group(blankToNull(req.getGroup()))
                     .description(req.getDescription())
                     .source(req.getSource() == null ? null : req.getSource().toUpperCase())
                     .repoUrl(req.getRepoUrl())

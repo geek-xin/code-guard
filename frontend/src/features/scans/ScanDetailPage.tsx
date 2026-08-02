@@ -189,6 +189,9 @@ export default function ScanDetailPage({ scanId }: { scanId: string }) {
     } else if (evt.type === 'error' && evt.data?.message) {
       setAgentStatus('FAILED');
       toast.error(evt.data.message);
+    } else if (evt.type === 'cancelled') {
+      setAgentStatus('CANCELLED');
+      toast.info('AI 审查已停止');
     }
   }
 
@@ -283,8 +286,8 @@ export default function ScanDetailPage({ scanId }: { scanId: string }) {
 
   return (
     <div className="space-y-5">
-      {/* 头部 */}
-      <div className="flex items-center justify-between gap-3">
+      {/* 头部（滚动时固定） */}
+      <div className="sticky top-0 z-30 -mx-2 flex items-center justify-between gap-3 rounded-md bg-paper/95 px-2 py-2 backdrop-blur-sm">
         <div className="flex items-center gap-3">
           <Button variant="outline" size="icon" onClick={() => window.history.back()}>
             <ArrowLeft className="h-4 w-4" />
@@ -362,7 +365,7 @@ export default function ScanDetailPage({ scanId }: { scanId: string }) {
       </Card>
 
       {/* 实时统计（页面级 sticky，滚动漏洞列表时固定显示） */}
-      <div className="sticky top-0 z-20 mb-4 grid grid-cols-2 gap-2 rounded-md border-chunky border-ink bg-white p-2 shadow-chunky-sm sm:grid-cols-5">
+      <div className="sticky top-[62px] z-20 mb-4 grid grid-cols-2 gap-2 rounded-md border-chunky border-ink bg-white p-2 shadow-chunky-sm sm:grid-cols-5">
         {(['CRITICAL', 'HIGH', 'MEDIUM', 'LOW', 'INFO'] as const).map((sev) => (
           <div key={sev} className="flex items-center gap-2 rounded-md border-2 border-ink/10 bg-paper px-2.5 py-1.5">
             <span className="h-4 w-4 shrink-0 rounded-sm border border-ink" style={{ background: SEVERITY_META[sev].bar }} />
@@ -477,6 +480,17 @@ export default function ScanDetailPage({ scanId }: { scanId: string }) {
                     <pre className="whitespace-pre-wrap font-mono text-xs leading-relaxed text-secondary">
                       {agentThinking || '正在连接...'}
                     </pre>
+                  </div>
+                </div>
+              ) : agentStatus === 'CANCELLED' ? (
+                <div className="py-12 text-center">
+                  <Square className="mx-auto mb-2 h-10 w-10 text-ink-subtle" />
+                  <p className="text-sm font-bold text-ink-muted">AI 审查已停止</p>
+                  <div className="mt-3 flex items-center justify-center gap-2">
+                    <Button size="sm" onClick={runAgentReview} disabled={agentLoading}>
+                      {agentLoading ? <Loader2 className="mr-1 h-4 w-4 animate-spin" /> : <Sparkles className="mr-1 h-4 w-4" />}
+                      重新生成
+                    </Button>
                   </div>
                 </div>
               ) : agentStatus === 'FAILED' ? (

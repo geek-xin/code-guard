@@ -89,6 +89,12 @@ export const api = {
   vulndbStatus: () => request<VulnDbStatus>('/vulndb/status'),
   vulndbUpdate: () => request<{ started: boolean; message: string }>('/vulndb/update', { method: 'POST' }),
 
+  // groups
+  listGroups: () => request<ProjectGroup[]>('/groups'),
+  createGroup: (name: string) => request<ProjectGroup>('/groups', { method: 'POST', body: JSON.stringify({ name }) }),
+  renameGroup: (id: string, name: string) => request<ProjectGroup>(`/groups/${id}`, { method: 'PUT', body: JSON.stringify({ name }) }),
+  deleteGroup: (id: string) => request<void>(`/groups/${id}`, { method: 'DELETE' }),
+
   // directory browser
   browseDirectory: (path = '') => request<BrowseResult>(`/projects/browse?path=${encodeURIComponent(path)}`),
 
@@ -117,6 +123,8 @@ export interface Project {
   id: string;
   name: string;
   alias?: string;
+  tags?: string[];
+  group?: string;
   description?: string;
   source: 'GITHUB' | 'GITLAB' | 'LOCAL';
   repoUrl?: string;
@@ -215,6 +223,13 @@ export interface TrendPoint {
   low: number;
 }
 
+export interface ProjectGroup {
+  id: string;
+  name: string;
+  color: string;
+  createdAt: string;
+}
+
 export interface BrowseResult {
   current: string;
   parent?: string;
@@ -223,7 +238,7 @@ export interface BrowseResult {
 }
 
 export interface AgentReviewStatus {
-  status: 'IDLE' | 'RUNNING' | 'COMPLETED' | 'FAILED';
+  status: 'IDLE' | 'RUNNING' | 'COMPLETED' | 'FAILED' | 'CANCELLED';
   error?: string;
   thinking?: string;
   thinkingLen?: number;
