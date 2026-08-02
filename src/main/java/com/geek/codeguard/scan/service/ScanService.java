@@ -32,6 +32,7 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.function.Consumer;
 import java.util.function.Predicate;
 
 /**
@@ -52,6 +53,9 @@ public class ScanService implements ScanProgressListener {
     private final CodeGuardProperties props;
 
     private final ExecutorService executor;
+    private final ExecutorService agentExecutor;
+    private final Map<String, AgentReviewJob> agentJobs = new ConcurrentHashMap<>();
+    private final Map<String, Sinks.Many<Map<String, Object>>> agentJobSinks = new ConcurrentHashMap<>();
     private final Map<String, Sinks.Many<Map<String, Object>>> sinks = new ConcurrentHashMap<>();
     private final Map<String, AtomicBoolean> cancelFlags = new ConcurrentHashMap<>();
     private final Map<String, String> runningProjectScan = new ConcurrentHashMap<>();
@@ -73,6 +77,26 @@ public class ScanService implements ScanProgressListener {
             t.setDaemon(true);
             return t;
         });
+        this.agentExecutor = Executors.newFixedThreadPool(2, r -> {
+            Thread t = new Thread(r, "agent-review-" + System.nanoTime());
+            t.setDaemon(true);
+            return t;
+        });
+    }
+
+    /** AI 审查任务（内存级，跨会话可见） */
+    public static class AgentReviewJob {
+        public final String scanId;
+        public volatile String status = "RUNNING"; // RUNNING / COMPLETED / FAILED
+        public volatile String error;
+        public final StringBuilder thinking = new StringBuilder();
+        public volatile String content;
+        public final long startedAt = System.currentTimeMillis();
+        public volatile long finishedAt;
+
+        public AgentReviewJob(String scanId) {
+            this.scanId = scanId;
+        }
     }
 
     @PreDestroy
@@ -373,8 +397,8 @@ public class ScanService implements ScanProgressListener {
                 .orElseThrow(() -> new BusinessException(ErrorCodeEnum.SCAN_NOT_FOUND, "漏洞记录不存在"));
     }
 
-    /** 对已完成扫描单独生成 AI 审查意见（无需重新全量扫描） */
-    public Map<String, Object> generateAgentReview(String scanId) {
+    /** 启动 AI 审查任务（异步，跨会话共享状态；重复触发返回现有任务状态） */
+    public Map<String, Object> startAgentReview(String scanId) {
         ScanRecord record = getScan(scanId);
         if (!"COMPLETED".equals(record.getStatus())) {
             throw new BusinessException(ErrorCodeEnum.BAD_REQUEST, "仅已完成的扫描可生成 AI 审查");
@@ -383,17 +407,102 @@ public class ScanService implements ScanProgressListener {
             throw new BusinessException(ErrorCodeEnum.AGENT_FAILED,
                     "未配置 Agent API Key，请先在「设置」中配置 OpenAI 兼容接口");
         }
-        List<ScanFinding> findings = getFindings(scanId, null, null, null, null);
-        String review = reviewAgentService.review(record.getProjectName(), findings);
-        if (review == null || review.isBlank()) {
-            throw new BusinessException(ErrorCodeEnum.AGENT_FAILED, "AI 审查调用失败，请检查 API Key 与网络后重试");
+        AgentReviewJob existing = agentJobs.get(scanId);
+        if (existing != null && "RUNNING".equals(existing.status)) {
+            return agentReviewStatus(scanId);
         }
-        record.setAgentReview(review);
-        saveRecord(record);
+        if (existing != null && "COMPLETED".equals(existing.status) && existing.content != null) {
+            return agentReviewStatus(scanId);
+        }
+        AgentReviewJob job = new AgentReviewJob(scanId);
+        agentJobs.put(scanId, job);
+        Sinks.Many<Map<String, Object>> sink = Sinks.many().multicast().onBackpressureBuffer(1024);
+        agentJobSinks.put(scanId, sink);
+        emitAgent(sink, "status", Map.of("status", "RUNNING", "message", "AI 审查已启动"));
+        emitAgent(sink, "thinking", Map.of("delta", "正在读取扫描漏洞清单...\n"));
+        agentExecutor.submit(() -> runAgentReviewTask(scanId, record, job, sink));
+        return agentReviewStatus(scanId);
+    }
+
+    private void runAgentReviewTask(String scanId, ScanRecord record, AgentReviewJob job,
+                                    Sinks.Many<Map<String, Object>> sink) {
+        try {
+            List<ScanFinding> findings = getFindings(scanId, null, null, null, null);
+            emitAgent(sink, "thinking", Map.of("delta", "漏洞清单已就绪（共 " + findings.size() + " 条），正在生成审查意见...\n"));
+            String full = reviewAgentService.streamReview(record.getProjectName(), findings, delta -> {
+                job.thinking.append(delta);
+                emitAgent(sink, "thinking", Map.of("delta", delta));
+            });
+            if (full == null || full.isBlank()) {
+                job.status = "FAILED";
+                job.error = "AI 审查调用失败，请检查 API Key 与网络后重试";
+                emitAgent(sink, "error", Map.of("message", job.error));
+                return;
+            }
+            job.content = full;
+            job.status = "COMPLETED";
+            job.finishedAt = System.currentTimeMillis();
+            record.setAgentReview(full);
+            saveRecord(record);
+            emitAgent(sink, "done", Map.of("status", "COMPLETED", "content", full));
+        } catch (Exception e) {
+            job.status = "FAILED";
+            job.error = e.getMessage() == null ? "AI 审查失败" : e.getMessage();
+            job.finishedAt = System.currentTimeMillis();
+            emitAgent(sink, "error", Map.of("message", job.error));
+        }
+    }
+
+    /** 查询审查任务状态（跨会话可见） */
+    public Map<String, Object> agentReviewStatus(String scanId) {
+        AgentReviewJob job = agentJobs.get(scanId);
         Map<String, Object> result = new LinkedHashMap<>();
-        result.put("generated", true);
-        result.put("content", review);
+        if (job == null) {
+            ScanRecord record = getScan(scanId);
+            if (record.getAgentReview() != null) {
+                result.put("status", "COMPLETED");
+                result.put("content", record.getAgentReview());
+            } else {
+                result.put("status", "IDLE");
+            }
+            return result;
+        }
+        result.put("status", job.status);
+        result.put("error", job.error);
+        int len = job.thinking.length();
+        result.put("thinking", job.thinking.substring(Math.max(0, len - 3000), len));
+        result.put("thinkingLen", len);
+        result.put("content", job.content);
+        result.put("startedAt", job.startedAt);
+        result.put("finishedAt", job.finishedAt == 0 ? null : job.finishedAt);
         return result;
+    }
+
+    /** 审查任务 SSE 事件流（实时思考过程） */
+    public Flux<Map<String, Object>> agentReviewEvents(String scanId) {
+        Sinks.Many<Map<String, Object>> sink = agentJobSinks.get(scanId);
+        if (sink == null) {
+            AgentReviewJob job = agentJobs.get(scanId);
+            if (job == null) {
+                return Flux.fromIterable(List.of(Map.of("type", "status", "data", Map.of("status", "IDLE"))));
+            }
+            return Flux.fromIterable(List.of(
+                    Map.of("type", "status", "data", Map.of("status", job.status)),
+                    Map.of("type", "replay", "data", Map.of("thinking", job.thinking.toString())),
+                    Map.of("type", "done", "data", Map.of("status", job.status, "content", job.content))
+            ));
+        }
+        return sink.asFlux();
+    }
+
+    private void emitAgent(Sinks.Many<Map<String, Object>> sink, String type, Object data) {
+        if (sink != null) {
+            Map<String, Object> event = new LinkedHashMap<>();
+            event.put("type", type);
+            event.put("data", data);
+            event.put("ts", System.currentTimeMillis());
+            sink.tryEmitNext(event);
+        }
     }
 
     private int sevRank(String sev) {

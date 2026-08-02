@@ -73,7 +73,8 @@ export const api = {
   listScans: (projectId?: string) => request<ScanRecord[]>('/scans' + (projectId ? `?projectId=${projectId}` : '')),
   getScan: (id: string) => request<ScanRecord>(`/scans/${id}`),
   stopScan: (id: string) => request<void>(`/scans/${id}/stop`, { method: 'POST' }),
-  generateAgentReview: (id: string) => request<{ generated: boolean; content: string }>(`/scans/${id}/agent-review`, { method: 'POST' }),
+  startAgentReview: (id: string) => request<AgentReviewStatus>(`/scans/${id}/agent-review`, { method: 'POST' }),
+  agentReviewStatus: (id: string) => request<AgentReviewStatus>(`/scans/${id}/agent-review/status`),
   getFindings: (id: string, params: { severity?: string; engine?: string; category?: string; limit?: number } = {}) => {
     const q = new URLSearchParams();
     if (params.severity) q.set('severity', params.severity);
@@ -219,6 +220,16 @@ export interface BrowseResult {
   parent?: string;
   name: string;
   dirs: { name: string; path: string }[];
+}
+
+export interface AgentReviewStatus {
+  status: 'IDLE' | 'RUNNING' | 'COMPLETED' | 'FAILED';
+  error?: string;
+  thinking?: string;
+  thinkingLen?: number;
+  content?: string;
+  startedAt?: number;
+  finishedAt?: number;
 }
 
 export interface SettingsView {

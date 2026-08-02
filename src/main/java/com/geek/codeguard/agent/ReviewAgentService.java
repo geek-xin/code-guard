@@ -13,10 +13,15 @@ import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.time.Duration;
+import java.io.BufferedReader;
+import java.io.InputStream;
+import java.io.InputStreamReader;
+import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.function.Consumer;
 
 /**
  * Code Review Agent：调用 OpenAI 兼容的 chat completions 接口，
@@ -75,6 +80,75 @@ public class ReviewAgentService {
             return content == null || content.isBlank() ? null : content;
         } catch (Exception e) {
             log.warn("Review Agent 异常: {}", e.getMessage());
+            return null;
+        }
+    }
+
+    /**
+     * 流式审查：stream=true 逐 token 回调 onDelta（用于前端实时打印思考过程）。
+     * 返回完整 Markdown 内容。
+     */
+    public String streamReview(String projectName, List<ScanFinding> findings, Consumer<String> onDelta) {
+        if (!isConfigured()) {
+            return null;
+        }
+        try {
+            Settings.Agent cfg = settingsService.effectiveAgent();
+            String prompt = buildPrompt(projectName, findings);
+            String endpoint = cfg.getBaseUrl().replaceAll("/+$", "") + "/chat/completions";
+            Map<String, Object> body = new LinkedHashMap<>();
+            body.put("model", cfg.getModel());
+            body.put("stream", true);
+            body.put("messages", List.of(
+                    Map.of("role", "system", "content", SYSTEM_PROMPT),
+                    Map.of("role", "user", "content", prompt)
+            ));
+            HttpRequest req = HttpRequest.newBuilder(URI.create(endpoint))
+                    .header("Authorization", "Bearer " + cfg.getApiKey())
+                    .header("Content-Type", "application/json")
+                    .timeout(Duration.ofMillis(props.getAgent().getTimeoutMs()))
+                    .POST(HttpRequest.BodyPublishers.ofString(mapper.writeValueAsString(body)))
+                    .build();
+            HttpResponse<InputStream> resp = http.send(req, HttpResponse.BodyHandlers.ofInputStream());
+            if (resp.statusCode() != 200) {
+                String err = new String(resp.body().readAllBytes(), StandardCharsets.UTF_8);
+                log.warn("Agent 流式调用失败: HTTP {} - {}", resp.statusCode(), err);
+                return null;
+            }
+            StringBuilder full = new StringBuilder();
+            try (BufferedReader reader = new BufferedReader(new InputStreamReader(resp.body(), StandardCharsets.UTF_8))) {
+                String line;
+                while ((line = reader.readLine()) != null) {
+                    if (!line.startsWith("data:")) {
+                        continue;
+                    }
+                    String data = line.substring(5).trim();
+                    if (data.equals("[DONE]")) {
+                        break;
+                    }
+                    try {
+                        var node = mapper.readTree(data);
+                        var deltaNode = node.path("choices").path(0).path("delta");
+                        // 推理模型的思考过程（deepseek 等）也实时推送
+                        String reasoning = deltaNode.path("reasoning_content").asText(null);
+                        if (reasoning != null && !reasoning.isEmpty() && onDelta != null) {
+                            onDelta.accept(reasoning);
+                        }
+                        String delta = deltaNode.path("content").asText(null);
+                        if (delta != null && !delta.isEmpty()) {
+                            full.append(delta);
+                            if (onDelta != null) {
+                                onDelta.accept(delta);
+                            }
+                        }
+                    } catch (Exception ignored) {
+                        // 忽略非 JSON 行
+                    }
+                }
+            }
+            return full.toString();
+        } catch (Exception e) {
+            log.warn("Agent 流式调用异常: {}", e.getMessage());
             return null;
         }
     }

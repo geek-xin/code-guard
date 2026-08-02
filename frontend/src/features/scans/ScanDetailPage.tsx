@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { ArrowLeft, Square, Loader2, FileSearch, Sparkles, Database, ShieldCheck, GitBranch, Radar, FileText, Download } from 'lucide-react';
-import { api, ScanFinding, ScanRecord, token } from '@/lib/api';
+import { api, ScanFinding, ScanRecord, token, AgentReviewStatus } from '@/lib/api';
+import MarkdownView from '@/components/markdown/MarkdownView';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -32,6 +33,9 @@ export default function ScanDetailPage({ scanId }: { scanId: string }) {
   const [loading, setLoading] = useState(true);
   const [reportOpen, setReportOpen] = useState(false);
   const [agentLoading, setAgentLoading] = useState(false);
+  const [agentStatus, setAgentStatus] = useState<AgentReviewStatus['status']>('IDLE');
+  const [agentThinking, setAgentThinking] = useState('');
+  const agentAbort = useRef<AbortController | null>(null);
   const mounted = useRef(true);
 
   const loadStatic = useCallback(async () => {
@@ -135,18 +139,94 @@ export default function ScanDetailPage({ scanId }: { scanId: string }) {
     }
   }
 
+  async function connectAgentEvents() {
+    agentAbort.current?.abort();
+    const ctrl = new AbortController();
+    agentAbort.current = ctrl;
+    const t = token();
+    let buffer = '';
+    try {
+      const resp = await fetch(`/api/scans/${scanId}/agent-review/events`, {
+        headers: t ? { Authorization: `Bearer ${t}` } : {},
+        signal: ctrl.signal,
+      });
+      if (!resp.ok || !resp.body) return;
+      const reader = resp.body.getReader();
+      const decoder = new TextDecoder();
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        buffer += decoder.decode(value, { stream: true });
+        let idx;
+        while ((idx = buffer.indexOf('\n\n')) >= 0) {
+          const chunk = buffer.slice(0, idx);
+          buffer = buffer.slice(idx + 2);
+          const dataLine = chunk.split('\n').find((l) => l.startsWith('data:'));
+          if (!dataLine) continue;
+          try {
+            const evt = JSON.parse(dataLine.slice(5).trim());
+            handleAgentEvent(evt);
+          } catch { /* ignore */ }
+        }
+      }
+    } catch { /* aborted */ }
+  }
+
+  function handleAgentEvent(evt: { type: string; data?: any }) {
+    if (evt.type === 'thinking' && evt.data?.delta) {
+      setAgentThinking((prev) => (prev + evt.data.delta).slice(-20000));
+    } else if (evt.type === 'status' && evt.data?.status) {
+      setAgentStatus(evt.data.status);
+    } else if (evt.type === 'replay' && evt.data?.thinking) {
+      setAgentThinking(evt.data.thinking.slice(-20000));
+    } else if (evt.type === 'done' && evt.data?.status === 'COMPLETED') {
+      setAgentStatus('COMPLETED');
+      if (evt.data.content) setAgentReview(evt.data.content);
+      toast.success('AI 审查意见已生成');
+    } else if (evt.type === 'done' && evt.data?.status === 'FAILED') {
+      setAgentStatus('FAILED');
+      toast.error('AI 审查失败');
+    } else if (evt.type === 'error' && evt.data?.message) {
+      setAgentStatus('FAILED');
+      toast.error(evt.data.message);
+    }
+  }
+
   async function runAgentReview() {
     setAgentLoading(true);
+    setAgentThinking('');
     try {
-      const res = await api.generateAgentReview(scanId);
-      setAgentReview(res.content);
-      toast.success('AI 审查意见已生成');
+      const res = await api.startAgentReview(scanId);
+      setAgentStatus(res.status);
+      if (res.status === 'COMPLETED' && res.content) {
+        setAgentReview(res.content);
+        toast.success('AI 审查意见已生成');
+      } else if (res.status === 'RUNNING') {
+        connectAgentEvents();
+      }
     } catch (e: any) {
+      setAgentStatus('FAILED');
       toast.error(e?.message ?? 'AI 审查失败');
     } finally {
       setAgentLoading(false);
     }
   }
+
+  // 进入页面时检查是否已有审查任务在运行（跨会话可见）
+  useEffect(() => {
+    api.agentReviewStatus(scanId).then((s) => {
+      if (s.status === 'RUNNING') {
+        setAgentStatus('RUNNING');
+        setAgentThinking(s.thinking ?? '');
+        connectAgentEvents();
+      } else if (s.status === 'COMPLETED' && s.content) {
+        setAgentStatus('COMPLETED');
+        setAgentReview(s.content);
+      }
+    }).catch(() => {});
+    return () => agentAbort.current?.abort();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [scanId]);
 
   async function downloadReport(format: string) {
     const t = token();
@@ -385,18 +465,40 @@ export default function ScanDetailPage({ scanId }: { scanId: string }) {
         <TabsContent value="agent">
           <Card>
             <CardContent className="p-5">
-              {agentReview ? (
-                <div className="prose-sm max-w-none">
-                  {agentReview.split('\n').map((line, i) => (
-                    <p key={i} className="mb-1 whitespace-pre-wrap text-sm leading-relaxed text-ink">{line}</p>
-                  ))}
+              {agentStatus === 'RUNNING' ? (
+                <div>
+                  <div className="mb-3 flex items-center gap-2">
+                    <Loader2 className="h-4 w-4 animate-spin text-primary" />
+                    <span className="text-sm font-black text-ink">AI 审查进行中...</span>
+                    <Badge variant="warning">实时思考</Badge>
+                  </div>
+                  {/* 实时思考过程（终端风格，自动滚动） */}
+                  <div className="overflow-y-auto rounded-md border-chunky border-ink bg-ink p-3" style={{ maxHeight: 420 }}>
+                    <pre className="whitespace-pre-wrap font-mono text-xs leading-relaxed text-secondary">
+                      {agentThinking || '正在连接...'}
+                    </pre>
+                  </div>
                 </div>
+              ) : agentStatus === 'FAILED' ? (
+                <div className="py-12 text-center">
+                  <Sparkles className="mx-auto mb-2 h-10 w-10 text-error" />
+                  <p className="text-sm font-bold text-ink-muted">AI 审查失败，请检查配置后重试</p>
+                  <div className="mt-3 flex items-center justify-center gap-2">
+                    <Button size="sm" onClick={runAgentReview} disabled={agentLoading}>
+                      {agentLoading ? <Loader2 className="mr-1 h-4 w-4 animate-spin" /> : <Sparkles className="mr-1 h-4 w-4" />}
+                      重新生成
+                    </Button>
+                    <Button variant="outline" size="sm" onClick={() => (window.location.hash = '#/settings')}>
+                      前往设置
+                    </Button>
+                  </div>
+                </div>
+              ) : agentReview ? (
+                <MarkdownView content={agentReview} />
               ) : (
                 <div className="py-12 text-center">
                   <Sparkles className="mx-auto mb-2 h-10 w-10 text-ink-subtle" />
-                  <p className="text-sm font-bold text-ink-muted">
-                    {running ? 'AI 审查进行中...' : '本次扫描未生成 AI 审查意见'}
-                  </p>
+                  <p className="text-sm font-bold text-ink-muted">本次扫描未生成 AI 审查意见</p>
                   <p className="mt-1 text-xs font-semibold text-ink-subtle">
                     在「设置」中配置 OpenAI 兼容接口的 API Key 后自动启用；已配置时可直接对本次扫描生成审查
                   </p>
@@ -404,7 +506,7 @@ export default function ScanDetailPage({ scanId }: { scanId: string }) {
                     {!running && scan.status === 'COMPLETED' && (
                       <Button size="sm" onClick={runAgentReview} disabled={agentLoading}>
                         {agentLoading ? <Loader2 className="mr-1 h-4 w-4 animate-spin" /> : <Sparkles className="mr-1 h-4 w-4" />}
-                        {agentLoading ? '生成中...' : '立即生成审查意见'}
+                        {agentLoading ? '启动中...' : '立即生成审查意见'}
                       </Button>
                     )}
                     <Button variant="outline" size="sm" onClick={() => (window.location.hash = '#/settings')}>

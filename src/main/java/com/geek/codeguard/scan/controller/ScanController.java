@@ -68,10 +68,22 @@ public class ScanController {
         return Mono.just(Result.success(scanService.getFinding(id, findingId)));
     }
 
-    /** 对已完成扫描直接生成 AI 审查意见 */
+    /** 启动 AI 审查任务（异步，跨会话可见） */
     @PostMapping("/{id}/agent-review")
     public Mono<Result<Map<String, Object>>> agentReview(@PathVariable String id) {
-        return Mono.fromCallable(() -> scanService.generateAgentReview(id)).map(Result::success);
+        return Mono.fromCallable(() -> scanService.startAgentReview(id)).map(Result::success);
+    }
+
+    /** 查询 AI 审查任务状态 */
+    @GetMapping("/{id}/agent-review/status")
+    public Mono<Result<Map<String, Object>>> agentReviewStatus(@PathVariable String id) {
+        return Mono.just(Result.success(scanService.agentReviewStatus(id)));
+    }
+
+    /** AI 审查实时思考过程（SSE） */
+    @GetMapping(value = "/{id}/agent-review/events", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
+    public Flux<Map<String, Object>> agentReviewEvents(@PathVariable String id) {
+        return scanService.agentReviewEvents(id);
     }
 
     @PostMapping("/{id}/stop")
