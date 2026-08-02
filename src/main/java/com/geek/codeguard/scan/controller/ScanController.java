@@ -1,6 +1,11 @@
 package com.geek.codeguard.scan.controller;
 
+import com.geek.codeguard.auth.model.User;
+import com.geek.codeguard.common.constants.CommonConstants;
 import com.geek.codeguard.common.result.Result;
+import com.geek.codeguard.github.GitHubIssueService;
+import com.geek.codeguard.project.model.Project;
+import com.geek.codeguard.project.service.ProjectService;
 import com.geek.codeguard.scan.model.ScanFinding;
 import com.geek.codeguard.scan.model.ScanRecord;
 import com.geek.codeguard.scan.service.ScanService;
@@ -20,9 +25,14 @@ import java.util.Map;
 public class ScanController {
 
     private final ScanService scanService;
+    private final ProjectService projectService;
+    private final GitHubIssueService githubIssueService;
 
-    public ScanController(ScanService scanService) {
+    public ScanController(ScanService scanService, ProjectService projectService,
+                          GitHubIssueService githubIssueService) {
         this.scanService = scanService;
+        this.projectService = projectService;
+        this.githubIssueService = githubIssueService;
     }
 
     @Data
@@ -69,6 +79,21 @@ public class ScanController {
     }
 
     /** 启动 AI 审查任务（异步，跨会话可见） */
+    /** 将本次扫描发现提交为 GitHub Issue */
+    @PostMapping("/{id}/github-issue")
+    public Mono<Result<Map<String, Object>>> githubIssue(@PathVariable String id,
+                                                         org.springframework.web.server.ServerWebExchange exchange) {
+        return Mono.fromCallable(() -> {
+            var scan = scanService.getScan(id);
+            Project project = projectService.get(scan.getProjectId());
+            var findings = scanService.getFindings(id, null, null, null, null);
+            User user = (User) exchange.getAttribute(CommonConstants.CURRENT_USER_ATTR);
+            String token = project.getToken() != null ? project.getToken()
+                    : user != null ? user.getAccessToken() : null;
+            return githubIssueService.createIssue(project, scan, findings, token);
+        }).map(Result::success);
+    }
+
     @PostMapping("/{id}/agent-review")
     public Mono<Result<Map<String, Object>>> agentReview(@PathVariable String id) {
         return Mono.fromCallable(() -> scanService.startAgentReview(id)).map(Result::success);

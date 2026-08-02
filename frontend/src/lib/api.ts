@@ -73,6 +73,8 @@ export const api = {
   listScans: (projectId?: string) => request<ScanRecord[]>('/scans' + (projectId ? `?projectId=${projectId}` : '')),
   getScan: (id: string) => request<ScanRecord>(`/scans/${id}`),
   stopScan: (id: string) => request<void>(`/scans/${id}/stop`, { method: 'POST' }),
+  createGithubIssue: (id: string) =>
+    request<{ number: number; htmlUrl: string; title: string; state: string }>(`/scans/${id}/github-issue`, { method: 'POST' }),
   startAgentReview: (id: string) => request<AgentReviewStatus>(`/scans/${id}/agent-review`, { method: 'POST' }),
   agentReviewStatus: (id: string) => request<AgentReviewStatus>(`/scans/${id}/agent-review/status`),
   getFindings: (id: string, params: { severity?: string; engine?: string; category?: string; limit?: number } = {}) => {

@@ -80,7 +80,7 @@ export default function Layout({ children, current }: { children: React.ReactNod
             );
           })}
 
-          <div className={cn('border-t-2 border-ink/10 pt-2', collapsed ? 'mt-2 px-2' : 'mt-2 px-3')}>
+          <div className="mt-2 border-t-2 border-ink/10 pt-2">
             <button
               type="button"
               onClick={toggle}

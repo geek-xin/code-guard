@@ -1,11 +1,11 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { ArrowLeft, Square, Loader2, FileSearch, Sparkles, Database, ShieldCheck, GitBranch, Radar, FileText, Download } from 'lucide-react';
+import { ArrowLeft, Square, Loader2, FileSearch, Sparkles, Database, ShieldCheck, GitBranch, Radar, FileText, Download, Github } from 'lucide-react';
 import { api, ScanFinding, ScanRecord, token, AgentReviewStatus } from '@/lib/api';
 import MarkdownView from '@/components/markdown/MarkdownView';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from '@/components/ui/table';
 import { SEVERITY_META, ENGINE_LABEL, STAGE_LABEL, formatTime, cn } from '@/lib/utils';
@@ -32,6 +32,9 @@ export default function ScanDetailPage({ scanId }: { scanId: string }) {
   const [agentReview, setAgentReview] = useState('');
   const [loading, setLoading] = useState(true);
   const [reportOpen, setReportOpen] = useState(false);
+  const [githubOpen, setGithubOpen] = useState(false);
+  const [githubSubmitting, setGithubSubmitting] = useState(false);
+  const [githubResult, setGithubResult] = useState<{ htmlUrl: string; number: number } | null>(null);
   const [agentLoading, setAgentLoading] = useState(false);
   const [agentStatus, setAgentStatus] = useState<AgentReviewStatus['status']>('IDLE');
   const [agentThinking, setAgentThinking] = useState('');
@@ -234,6 +237,19 @@ export default function ScanDetailPage({ scanId }: { scanId: string }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [scanId]);
 
+  async function submitGithubIssue() {
+    setGithubSubmitting(true);
+    try {
+      const res = await api.createGithubIssue(scanId);
+      setGithubResult({ htmlUrl: res.htmlUrl, number: res.number });
+      toast.success(`已创建 GitHub Issue #${res.number}`);
+    } catch (e: any) {
+      toast.error(e?.message ?? '提交 GitHub Issue 失败');
+    } finally {
+      setGithubSubmitting(false);
+    }
+  }
+
   async function downloadReport(format: string) {
     const t = token();
     try {
@@ -312,9 +328,14 @@ export default function ScanDetailPage({ scanId }: { scanId: string }) {
         </div>
         <div className="flex items-center gap-2">
           {!running && scan.status === 'COMPLETED' && (
-            <Button variant="outline" onClick={() => setReportOpen(true)}>
-              <FileText className="h-4 w-4" /> 生成报告
-            </Button>
+            <>
+              <Button variant="outline" onClick={() => setReportOpen(true)}>
+                <FileText className="h-4 w-4" /> 生成报告
+              </Button>
+              <Button variant="outline" onClick={() => { setGithubResult(null); setGithubOpen(true); }}>
+                <Github className="h-4 w-4" /> 提交 GitHub
+              </Button>
+            </>
           )}
           {running && (
             <Button variant="danger" onClick={stop}>
@@ -618,6 +639,45 @@ export default function ScanDetailPage({ scanId }: { scanId: string }) {
               </div>
             </>
           )}
+        </DialogContent>
+      </Dialog>
+
+      {/* 提交 GitHub Issue */}
+      <Dialog open={githubOpen} onOpenChange={(v) => { setGithubOpen(v); if (!v) setGithubResult(null); }}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2"><Github className="h-5 w-5 text-ink" /> 提交到 GitHub Issue</DialogTitle>
+            <DialogDescription>
+              将本次扫描的漏洞汇总（共 {(summary.total as number) ?? 0} 个问题）提交为 {scan.projectName} 仓库的 Issue，
+              包含按严重程度分类的明细与修复建议。
+            </DialogDescription>
+          </DialogHeader>
+          {githubResult ? (
+            <div className="space-y-3">
+              <div className="rounded-md border-chunky border-ink bg-secondary/30 p-3 text-sm">
+                ✅ 已创建 Issue <b>#{githubResult.number}</b>
+              </div>
+              <a href={githubResult.htmlUrl} target="_blank" rel="noreferrer"
+                className="block rounded-md border-chunky border-ink bg-white p-3 text-center text-sm font-black text-primary shadow-chunky-sm hover:bg-paper-alt">
+                打开 Issue 查看
+              </a>
+            </div>
+          ) : (
+            <div className="rounded-md border-2 border-ink/10 bg-paper p-3 text-xs font-semibold leading-relaxed text-ink-muted">
+              <p>· 使用<b className="text-ink">项目配置的 Token</b> 或当前<b className="text-ink"> GitHub 登录账号</b> 创建</p>
+              <p>· 仅在<b className="text-ink"> GitHub 来源</b> 的项目上可用</p>
+              <p>· 报告正文较长时自动截断（平台保留完整报告）</p>
+            </div>
+          )}
+          <DialogFooter>
+            <Button variant="ghost" onClick={() => setGithubOpen(false)}>关闭</Button>
+            {!githubResult && (
+              <Button onClick={submitGithubIssue} disabled={githubSubmitting}>
+                {githubSubmitting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Github className="h-4 w-4" />}
+                {githubSubmitting ? '创建中...' : '确认创建'}
+              </Button>
+            )}
+          </DialogFooter>
         </DialogContent>
       </Dialog>
 
