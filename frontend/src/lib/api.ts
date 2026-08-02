@@ -73,6 +73,7 @@ export const api = {
   listScans: (projectId?: string) => request<ScanRecord[]>('/scans' + (projectId ? `?projectId=${projectId}` : '')),
   getScan: (id: string) => request<ScanRecord>(`/scans/${id}`),
   stopScan: (id: string) => request<void>(`/scans/${id}/stop`, { method: 'POST' }),
+  generateAgentReview: (id: string) => request<{ generated: boolean; content: string }>(`/scans/${id}/agent-review`, { method: 'POST' }),
   getFindings: (id: string, params: { severity?: string; engine?: string; category?: string; limit?: number } = {}) => {
     const q = new URLSearchParams();
     if (params.severity) q.set('severity', params.severity);
@@ -93,6 +94,9 @@ export const api = {
   // settings
   getSettings: () => request<SettingsView>('/settings'),
   updateSettings: (data: SettingsPayload) => request<SettingsView>('/settings', { method: 'PUT', body: JSON.stringify(data) }),
+  testAgent: (data?: SettingsPayload['agent']) =>
+    request<{ ok: boolean; latencyMs?: number; model?: string; reply?: string; error?: string }>(
+      '/settings/agent/test', { method: 'POST', body: JSON.stringify(data ?? {}) }),
 };
 
 // ============ 类型 ============

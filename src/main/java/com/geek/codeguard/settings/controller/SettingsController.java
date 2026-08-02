@@ -7,6 +7,7 @@ import jakarta.validation.Valid;
 import jakarta.validation.constraints.Size;
 import lombok.Data;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -49,6 +50,23 @@ public class SettingsController {
         private String apiKey;
         @Size(max = 128)
         private String model;
+    }
+
+    /** 测试 Agent 连接（使用请求体中的表单值，未填则用已保存配置；不保存） */
+    @PostMapping("/agent/test")
+    public Mono<Result<Map<String, Object>>> testAgent(@RequestBody(required = false) AgentRequest req) {
+        return Mono.fromCallable(() -> {
+            Settings.Agent candidate = null;
+            if (req != null) {
+                candidate = Settings.Agent.builder()
+                        .enabled(req.getEnabled())
+                        .baseUrl(req.getBaseUrl())
+                        .apiKey(req.getApiKey())
+                        .model(req.getModel())
+                        .build();
+            }
+            return settingsService.testAgent(candidate);
+        }).map(Result::success);
     }
 
     @Data

@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Sparkles, Save, Loader2, KeyRound, Github, Gitlab, ShieldCheck, RefreshCw, Mail } from 'lucide-react';
+import { Sparkles, Save, Loader2, KeyRound, Github, Gitlab, ShieldCheck, RefreshCw, Mail, PlugZap } from 'lucide-react';
 import { api, SettingsView } from '@/lib/api';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -15,6 +15,8 @@ export default function SettingsPage() {
   const [model, setModel] = useState('');
   const [apiKey, setApiKey] = useState('');
   const [saving, setSaving] = useState(false);
+  const [testing, setTesting] = useState(false);
+  const [testResult, setTestResult] = useState<{ ok: boolean; latencyMs?: number; model?: string; reply?: string; error?: string } | null>(null);
   // SMTP
   const [smtpEnabled, setSmtpEnabled] = useState(false);
   const [smtpHost, setSmtpHost] = useState('');
@@ -44,6 +46,24 @@ export default function SettingsPage() {
   useEffect(() => {
     load();
   }, []);
+
+  const test = async () => {
+    setTesting(true);
+    setTestResult(null);
+    try {
+      const res = await api.testAgent({
+        enabled,
+        baseUrl,
+        model,
+        apiKey: apiKey.trim() || undefined,
+      });
+      setTestResult(res);
+    } catch (e: any) {
+      setTestResult({ ok: false, error: e?.message ?? '测试失败' });
+    } finally {
+      setTesting(false);
+    }
+  };
 
   const save = async () => {
     setSaving(true);
@@ -141,15 +161,45 @@ export default function SettingsPage() {
             </div>
           </div>
 
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
+            <Button variant="outline" onClick={test} disabled={testing}>
+              {testing ? <Loader2 className="h-4 w-4 animate-spin" /> : <PlugZap className="h-4 w-4" />}
+              {testing ? '测试中...' : '测试连接'}
+            </Button>
             <Button onClick={save} disabled={saving}>
               {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
               保存配置
             </Button>
-            <Button variant="outline" onClick={load}>
+            <Button variant="ghost" onClick={load}>
               <RefreshCw className="h-4 w-4" /> 刷新
             </Button>
           </div>
+
+          {/* 测试结果 */}
+          {testResult && (
+            <div className={cn(
+              'rounded-md border-chunky p-3 text-sm',
+              testResult.ok ? 'border-ink bg-secondary/30' : 'border-ink bg-error/10',
+            )}>
+              {testResult.ok ? (
+                <div className="flex items-start gap-2">
+                  <Badge variant="success">连接正常</Badge>
+                  <div className="text-xs font-semibold text-ink-muted">
+                    模型 {testResult.model} · 延迟 {testResult.latencyMs}ms
+                    {testResult.reply && <span className="mt-1 block text-ink">模型回复：{testResult.reply}</span>}
+                  </div>
+                </div>
+              ) : (
+                <div className="flex items-start gap-2">
+                  <Badge variant="danger">连接失败</Badge>
+                  <div className="break-all text-xs font-semibold text-ink-muted">
+                    {testResult.error ?? '未知错误'}
+                    {testResult.latencyMs != null && <span>（{testResult.latencyMs}ms）</span>}
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
         </CardContent>
       </Card>
 

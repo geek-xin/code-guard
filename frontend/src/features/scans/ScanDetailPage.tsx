@@ -31,6 +31,7 @@ export default function ScanDetailPage({ scanId }: { scanId: string }) {
   const [agentReview, setAgentReview] = useState('');
   const [loading, setLoading] = useState(true);
   const [reportOpen, setReportOpen] = useState(false);
+  const [agentLoading, setAgentLoading] = useState(false);
   const mounted = useRef(true);
 
   const loadStatic = useCallback(async () => {
@@ -131,6 +132,19 @@ export default function ScanDetailPage({ scanId }: { scanId: string }) {
     } else if (evt.type === 'error' && evt.data) {
       toast.error(evt.data.message ?? '扫描出错');
       loadStatic();
+    }
+  }
+
+  async function runAgentReview() {
+    setAgentLoading(true);
+    try {
+      const res = await api.generateAgentReview(scanId);
+      setAgentReview(res.content);
+      toast.success('AI 审查意见已生成');
+    } catch (e: any) {
+      toast.error(e?.message ?? 'AI 审查失败');
+    } finally {
+      setAgentLoading(false);
     }
   }
 
@@ -384,11 +398,19 @@ export default function ScanDetailPage({ scanId }: { scanId: string }) {
                     {running ? 'AI 审查进行中...' : '本次扫描未生成 AI 审查意见'}
                   </p>
                   <p className="mt-1 text-xs font-semibold text-ink-subtle">
-                    在「设置」中配置 OpenAI 兼容接口的 API Key 后自动启用
+                    在「设置」中配置 OpenAI 兼容接口的 API Key 后自动启用；已配置时可直接对本次扫描生成审查
                   </p>
-                  <Button variant="outline" size="sm" className="mt-3" onClick={() => (window.location.hash = '#/settings')}>
-                    <Sparkles className="mr-1 h-4 w-4" /> 前往设置
-                  </Button>
+                  <div className="mt-3 flex items-center justify-center gap-2">
+                    {!running && scan.status === 'COMPLETED' && (
+                      <Button size="sm" onClick={runAgentReview} disabled={agentLoading}>
+                        {agentLoading ? <Loader2 className="mr-1 h-4 w-4 animate-spin" /> : <Sparkles className="mr-1 h-4 w-4" />}
+                        {agentLoading ? '生成中...' : '立即生成审查意见'}
+                      </Button>
+                    )}
+                    <Button variant="outline" size="sm" onClick={() => (window.location.hash = '#/settings')}>
+                      <Sparkles className="mr-1 h-4 w-4" /> 前往设置
+                    </Button>
+                  </div>
                 </div>
               )}
             </CardContent>

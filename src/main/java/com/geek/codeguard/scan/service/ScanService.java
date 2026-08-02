@@ -373,6 +373,29 @@ public class ScanService implements ScanProgressListener {
                 .orElseThrow(() -> new BusinessException(ErrorCodeEnum.SCAN_NOT_FOUND, "漏洞记录不存在"));
     }
 
+    /** 对已完成扫描单独生成 AI 审查意见（无需重新全量扫描） */
+    public Map<String, Object> generateAgentReview(String scanId) {
+        ScanRecord record = getScan(scanId);
+        if (!"COMPLETED".equals(record.getStatus())) {
+            throw new BusinessException(ErrorCodeEnum.BAD_REQUEST, "仅已完成的扫描可生成 AI 审查");
+        }
+        if (!reviewAgentService.isConfigured()) {
+            throw new BusinessException(ErrorCodeEnum.AGENT_FAILED,
+                    "未配置 Agent API Key，请先在「设置」中配置 OpenAI 兼容接口");
+        }
+        List<ScanFinding> findings = getFindings(scanId, null, null, null, null);
+        String review = reviewAgentService.review(record.getProjectName(), findings);
+        if (review == null || review.isBlank()) {
+            throw new BusinessException(ErrorCodeEnum.AGENT_FAILED, "AI 审查调用失败，请检查 API Key 与网络后重试");
+        }
+        record.setAgentReview(review);
+        saveRecord(record);
+        Map<String, Object> result = new LinkedHashMap<>();
+        result.put("generated", true);
+        result.put("content", review);
+        return result;
+    }
+
     private int sevRank(String sev) {
         return switch (sev == null ? "" : sev.toUpperCase()) {
             case "CRITICAL" -> 4;

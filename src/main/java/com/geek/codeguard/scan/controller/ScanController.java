@@ -68,6 +68,12 @@ public class ScanController {
         return Mono.just(Result.success(scanService.getFinding(id, findingId)));
     }
 
+    /** 对已完成扫描直接生成 AI 审查意见 */
+    @PostMapping("/{id}/agent-review")
+    public Mono<Result<Map<String, Object>>> agentReview(@PathVariable String id) {
+        return Mono.fromCallable(() -> scanService.generateAgentReview(id)).map(Result::success);
+    }
+
     @PostMapping("/{id}/stop")
     public Mono<Result<Void>> stop(@PathVariable String id) {
         return Mono.fromCallable(() -> {

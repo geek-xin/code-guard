@@ -137,6 +137,69 @@ public class SettingsService {
         return result;
     }
 
+    /** 测试 Agent 连通性：candidate 优先（前端表单值），缺省回退已保存配置 */
+    public Map<String, Object> testAgent(Settings.Agent candidate) {
+        Settings.Agent eff = effectiveAgent();
+        Settings.Agent test = Settings.Agent.builder()
+                .enabled(candidate != null && candidate.getEnabled() != null ? candidate.getEnabled() : eff.getEnabled())
+                .baseUrl(notBlank(candidate == null ? null : candidate.getBaseUrl()) ? candidate.getBaseUrl().trim() : eff.getBaseUrl())
+                .model(notBlank(candidate == null ? null : candidate.getModel()) ? candidate.getModel().trim() : eff.getModel())
+                .apiKey(notBlank(candidate == null ? null : candidate.getApiKey()) ? candidate.getApiKey().trim() : eff.getApiKey())
+                .build();
+        if (test.getApiKey() == null || test.getApiKey().isBlank()) {
+            throw new BusinessException(ErrorCodeEnum.AGENT_FAILED, "未配置 API Key");
+        }
+        long start = System.currentTimeMillis();
+        try {
+            java.net.http.HttpClient http = java.net.http.HttpClient.newBuilder()
+                    .connectTimeout(java.time.Duration.ofSeconds(10)).build();
+            String endpoint = test.getBaseUrl().replaceAll("/+$", "") + "/chat/completions";
+            Map<String, Object> body = new LinkedHashMap<>();
+            body.put("model", test.getModel());
+            body.put("max_tokens", 16);
+            body.put("messages", java.util.List.of(
+                    Map.of("role", "user", "content", "回复 OK 即可")));
+            java.net.http.HttpRequest req = java.net.http.HttpRequest.newBuilder(java.net.URI.create(endpoint))
+                    .header("Authorization", "Bearer " + test.getApiKey())
+                    .header("Content-Type", "application/json")
+                    .timeout(java.time.Duration.ofSeconds(30))
+                    .POST(java.net.http.HttpRequest.BodyPublishers.ofString(
+                            jsonStore.mapper().writeValueAsString(body)))
+                    .build();
+            java.net.http.HttpResponse<String> resp = http.send(req, java.net.http.HttpResponse.BodyHandlers.ofString());
+            long latency = System.currentTimeMillis() - start;
+            if (resp.statusCode() != 200) {
+                String detail = "";
+                try {
+                    var node = jsonStore.mapper().readTree(resp.body());
+                    detail = node.path("error").path("message").asText(resp.body().substring(0, Math.min(200, resp.body().length())));
+                } catch (Exception ignored) {
+                    detail = resp.body().substring(0, Math.min(200, resp.body().length()));
+                }
+                // 错误信息脱敏：避免回显 API Key
+                detail = detail.replace(test.getApiKey(), "****");
+                throw new BusinessException(ErrorCodeEnum.AGENT_FAILED, "HTTP " + resp.statusCode() + ": " + detail);
+            }
+            var node = jsonStore.mapper().readTree(resp.body());
+            String reply = node.path("choices").path(0).path("message").path("content").asText("");
+            Map<String, Object> result = new LinkedHashMap<>();
+            result.put("ok", true);
+            result.put("latencyMs", latency);
+            result.put("model", test.getModel());
+            result.put("reply", reply == null ? "" : reply.trim());
+            return result;
+        } catch (BusinessException e) {
+            throw e;
+        } catch (Exception e) {
+            long latency = System.currentTimeMillis() - start;
+            Map<String, Object> result = new LinkedHashMap<>();
+            result.put("ok", false);
+            result.put("latencyMs", latency);
+            result.put("error", e.getMessage());
+            return result;
+        }
+    }
+
     public void validateAgent(Settings.Agent agent) {
         if (agent.getBaseUrl() != null && !agent.getBaseUrl().isBlank()
                 && !agent.getBaseUrl().startsWith("http://") && !agent.getBaseUrl().startsWith("https://")) {
