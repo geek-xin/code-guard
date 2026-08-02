@@ -271,24 +271,7 @@ export default function ProjectFormDialog({
             </p>
           </div>
 
-          <div className="rounded-md border-2 border-ink/10 bg-paper p-3">
-            <div className="flex items-center justify-between">
-              <label className="text-xs font-bold text-ink">AI 代码审查</label>
-              <button
-                type="button"
-                onClick={() => setAgentReview(!agentReview)}
-                className={cn(
-                  'relative h-6 w-11 rounded-full border-chunky border-ink transition-colors',
-                  agentReview ? 'bg-secondary' : 'bg-paper',
-                )}
-              >
-                <span className={cn('absolute top-0.5 h-4 w-4 rounded-full border border-ink bg-white transition-all', agentReview ? 'left-6' : 'left-0.5')} />
-              </button>
-            </div>
-            <p className="mt-1 text-[11px] font-semibold text-ink-muted">
-              默认关闭；开启后每次扫描自动执行 AI 审查（需在「设置」中配置 API Key）
-            </p>
-          </div>
+          
 
           <div className="rounded-md border-2 border-ink/10 bg-paper p-3">
             <div className="flex items-center justify-between">
