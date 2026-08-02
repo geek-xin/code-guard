@@ -1,8 +1,9 @@
 import { useCallback, useEffect, useState } from 'react';
-import { Plus, RefreshCw, ScanSearch, Pencil, Trash2, FolderGit2, Github, Gitlab, FolderOpen, Clock, Mail } from 'lucide-react';
+import { Plus, RefreshCw, ScanSearch, Pencil, Trash2, FolderGit2, Github, Gitlab, FolderOpen, Clock, Mail, Search } from 'lucide-react';
 import { api, Project } from '@/lib/api';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { SEVERITY_META, timeAgo, formatTime } from '@/lib/utils';
 import { toast } from 'sonner';
@@ -25,6 +26,7 @@ export default function ProjectsPage() {
   const [editing, setEditing] = useState<Project | null>(null);
   const [deleting, setDeleting] = useState<Project | null>(null);
   const [busyId, setBusyId] = useState<string | null>(null);
+  const [nameFilter, setNameFilter] = useState('');
 
   const load = useCallback(() => {
     api.listProjects().then(setProjects).catch((e) => toast.error(e.message)).finally(() => setLoading(false));
@@ -71,6 +73,12 @@ export default function ProjectsPage() {
     setDeleting(null);
   };
 
+  const filteredProjects = projects.filter((p) => {
+    const q = nameFilter.trim().toLowerCase();
+    if (!q) return true;
+    return (p.name ?? '').toLowerCase().includes(q) || (p.alias ?? '').toLowerCase().includes(q);
+  });
+
   const openCreate = () => {
     setEditing(null);
     setFormOpen(true);
@@ -86,17 +94,30 @@ export default function ProjectsPage() {
 
   return (
     <div className="space-y-5">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
           <h1 className="text-2xl font-black text-ink">工程项目</h1>
-          <p className="text-sm font-semibold text-ink-muted">共 {projects.length} 个工程 · 支持 GitHub / GitLab / 本地目录</p>
+          <p className="text-sm font-semibold text-ink-muted">
+            共 {filteredProjects.length} / {projects.length} 个工程 · 支持 GitHub / GitLab / 本地目录
+          </p>
         </div>
-        <Button onClick={openCreate}>
-          <Plus className="h-4 w-4" /> 添加项目
-        </Button>
+        <div className="flex items-center gap-2">
+          <div className="relative">
+            <Search className="absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-ink-subtle" />
+            <Input
+              value={nameFilter}
+              onChange={(e) => setNameFilter(e.target.value)}
+              placeholder="过滤项目名称..."
+              className="w-52 pl-8"
+            />
+          </div>
+          <Button onClick={openCreate}>
+            <Plus className="h-4 w-4" /> 添加项目
+          </Button>
+        </div>
       </div>
 
-      {projects.length === 0 ? (
+      {filteredProjects.length === 0 ? (
         <Card>
           <CardContent className="flex flex-col items-center gap-3 py-16 text-center">
             <FolderGit2 className="h-12 w-12 text-ink-subtle" />
@@ -112,7 +133,7 @@ export default function ProjectsPage() {
         </Card>
       ) : (
         <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
-          {projects.map((p) => (
+          {filteredProjects.map((p) => (
             <ProjectCard
               key={p.id}
               project={p}
