@@ -1,5 +1,6 @@
 import { useState } from 'react';
-import { Shield, LayoutDashboard, FolderGit2, ScanSearch, Database, Settings as SettingsIcon, LogOut, Github, PanelLeftClose, PanelLeftOpen } from 'lucide-react';
+import { Shield, LayoutDashboard, FolderGit2, ScanSearch, Database, Settings as SettingsIcon, LogOut, Github, PanelLeftClose, PanelLeftOpen, MessageSquarePlus } from 'lucide-react';
+import FeedbackDialog from '@/features/feedback/FeedbackDialog';
 import { api, setToken, SessionUser } from '@/lib/api';
 import { cn } from '@/lib/utils';
 import { useEffect } from 'react';
@@ -17,6 +18,7 @@ const COLLAPSE_KEY = 'cg_sidebar_collapsed';
 export default function Layout({ children, current }: { children: React.ReactNode; current: string }) {
   const [user, setUser] = useState<SessionUser | null>(null);
   const [collapsed, setCollapsed] = useState(() => localStorage.getItem(COLLAPSE_KEY) !== '0');
+  const [feedbackOpen, setFeedbackOpen] = useState(false);
 
   useEffect(() => {
     api.me().then(setUser).catch(() => {});
@@ -80,6 +82,21 @@ export default function Layout({ children, current }: { children: React.ReactNod
             );
           })}
 
+          {/* 问题反馈（设置下方） */}
+          <button
+            type="button"
+            onClick={() => setFeedbackOpen(true)}
+            title="问题反馈"
+            className={cn(
+              'flex w-full items-center gap-2.5 rounded-md border-chunky text-sm font-bold transition-all',
+              collapsed ? 'justify-center px-0 py-2.5' : 'px-3 py-2.5',
+              'border-transparent text-ink-muted hover:bg-paper hover:text-ink',
+            )}
+          >
+            <MessageSquarePlus className="h-4 w-4 shrink-0" />
+            {!collapsed && '问题反馈'}
+          </button>
+
           <div className="mt-2 border-t-2 border-ink/10 pt-2">
             <button
               type="button"
@@ -135,6 +152,7 @@ export default function Layout({ children, current }: { children: React.ReactNod
           )}
         </div>
       </aside>
+      <FeedbackDialog open={feedbackOpen} onOpenChange={setFeedbackOpen} />
       <main className={cn('flex-1 px-8 py-6 transition-all duration-200', collapsed ? 'ml-16' : 'ml-60')}>
         {children}
       </main>
