@@ -264,18 +264,19 @@ export default function ScanDetailPage({ scanId }: { scanId: string }) {
             })}
           </div>
 
-          {/* 实时统计（滚动时固定显示） */}
-          <div className="sticky top-0 z-20 mt-4 grid grid-cols-2 gap-3 rounded-md bg-paper/95 px-1 py-2 backdrop-blur-sm sm:grid-cols-5">
-            {(['CRITICAL', 'HIGH', 'MEDIUM', 'LOW', 'INFO'] as const).map((sev) => (
-              <div key={sev} className="flex items-center gap-2 rounded-md border-2 border-ink/10 bg-paper px-3 py-2">
-                <span className="h-4 w-4 rounded-sm border border-ink" style={{ background: SEVERITY_META[sev].bar }} />
-                <span className="text-xs font-bold text-ink-muted">{SEVERITY_META[sev].label}</span>
-                <span className="ml-auto text-lg font-black text-ink">{liveCount[sev] ?? summary[sev.toLowerCase()] ?? 0}</span>
-              </div>
-            ))}
-          </div>
         </CardContent>
       </Card>
+
+      {/* 实时统计（页面级 sticky，滚动漏洞列表时固定显示） */}
+      <div className="sticky top-0 z-20 mb-4 grid grid-cols-2 gap-2 rounded-md border-chunky border-ink bg-white p-2 shadow-chunky-sm sm:grid-cols-5">
+        {(['CRITICAL', 'HIGH', 'MEDIUM', 'LOW', 'INFO'] as const).map((sev) => (
+          <div key={sev} className="flex items-center gap-2 rounded-md border-2 border-ink/10 bg-paper px-2.5 py-1.5">
+            <span className="h-4 w-4 shrink-0 rounded-sm border border-ink" style={{ background: SEVERITY_META[sev].bar }} />
+            <span className="text-xs font-bold text-ink-muted">{SEVERITY_META[sev].label}</span>
+            <span className="ml-auto text-lg font-black text-ink">{liveCount[sev] ?? summary[sev.toLowerCase()] ?? 0}</span>
+          </div>
+        ))}
+      </div>
 
       {/* 漏洞列表 + Agent 审查 */}
       <Tabs defaultValue="findings">

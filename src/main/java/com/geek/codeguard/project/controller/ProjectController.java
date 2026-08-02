@@ -24,10 +24,15 @@ public class ProjectController {
         this.projectService = projectService;
     }
 
+    private static String blankToNull(String s) {
+        return s == null || s.isBlank() ? null : s.trim();
+    }
+
     @Data
     public static class ProjectRequest {
         @NotBlank(message = "项目名称不能为空")
         private String name;
+        private String alias;
         private String description;
         @NotBlank(message = "源码来源不能为空")
         private String source;
@@ -61,6 +66,7 @@ public class ProjectController {
         return Mono.fromCallable(() -> {
             Project project = Project.builder()
                     .name(req.getName().trim())
+                    .alias(blankToNull(req.getAlias()))
                     .description(req.getDescription())
                     .source(req.getSource().toUpperCase())
                     .repoUrl(req.getRepoUrl())
@@ -87,6 +93,7 @@ public class ProjectController {
         return Mono.fromCallable(() -> {
             Project update = Project.builder()
                     .name(req.getName())
+                    .alias(blankToNull(req.getAlias()))
                     .description(req.getDescription())
                     .source(req.getSource() == null ? null : req.getSource().toUpperCase())
                     .repoUrl(req.getRepoUrl())

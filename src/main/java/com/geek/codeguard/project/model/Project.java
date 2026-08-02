@@ -17,6 +17,8 @@ import java.util.Map;
 public class Project {
     private String id;
     private String name;
+    /** 显示别名（可选，手动填写） */
+    private String alias;
     private String description;
     /** GITHUB / GITLAB / LOCAL */
     private String source;

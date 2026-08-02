@@ -174,9 +174,11 @@ function ProjectCard({ project, busy, onScan, onSync, onEdit, onDelete }: {
           <div className="min-w-0">
             <div className="flex items-center gap-2">
               <span className="text-primary">{src.icon}</span>
-              <span className="truncate text-base font-black text-ink">{project.name}</span>
+              <span className="truncate text-base font-black text-ink">{project.alias || project.name}</span>
             </div>
-            {project.description && <p className="mt-0.5 line-clamp-1 text-xs font-semibold text-ink-muted">{project.description}</p>}
+            <p className="mt-0.5 line-clamp-1 text-xs font-semibold text-ink-muted">
+              {project.alias ? `${project.name}${project.description ? ' · ' + project.description : ''}` : project.description}
+            </p>
           </div>
           <Badge variant="outline">{src.label}</Badge>
         </div>

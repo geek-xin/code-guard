@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -26,7 +26,9 @@ export default function ProjectFormDialog({
   onSaved?: () => void;
 }) {
   const [name, setName] = useState('');
+  const [alias, setAlias] = useState('');
   const [description, setDescription] = useState('');
+  const nameTouched = useRef(false);
   const [source, setSource] = useState('GITHUB');
   const [repoUrl, setRepoUrl] = useState('');
   const [branch, setBranch] = useState('main');
@@ -43,9 +45,20 @@ export default function ProjectFormDialog({
   const [enabled, setEnabled] = useState(true);
   const [saving, setSaving] = useState(false);
 
+  /** 从本地目录或仓库地址自动识别项目名（如 web-sim、org/repo.git -> repo） */
+  const detectName = (value: string): string | null => {
+    const v = value.trim().replace(/\/+$/, '');
+    if (!v) return null;
+    const seg = v.split(/[/\\]/).filter(Boolean).pop() ?? '';
+    const cleaned = seg.replace(/\.git$/, '').replace(/\.(svn|hg)$/, '');
+    return cleaned || null;
+  };
+
   useEffect(() => {
     if (open) {
+      nameTouched.current = false;
       setName(project?.name ?? '');
+      setAlias(project?.alias ?? '');
       setDescription(project?.description ?? '');
       setSource(project?.source ?? 'GITHUB');
       setRepoUrl(project?.repoUrl ?? '');
@@ -70,6 +83,7 @@ export default function ProjectFormDialog({
     try {
       const data: Record<string, unknown> = {
         name,
+        alias: alias.trim() || undefined,
         description,
         source,
         branch: source === 'LOCAL' ? undefined : branch,
@@ -130,9 +144,15 @@ export default function ProjectFormDialog({
           </div>
 
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-            <div className="sm:col-span-2">
+            <div>
               <label className="mb-1 block text-xs font-bold text-ink-muted">项目名称 *</label>
-              <Input value={name} onChange={(e) => setName(e.target.value)} required placeholder="例如：web-sim" />
+              <Input value={name} onChange={(e) => { nameTouched.current = true; setName(e.target.value); }}
+                required placeholder="自动识别，可修改" />
+              <p className="mt-1 text-[11px] font-semibold text-ink-muted">填写目录/仓库地址后自动识别</p>
+            </div>
+            <div>
+              <label className="mb-1 block text-xs font-bold text-ink-muted">别名（可选）</label>
+              <Input value={alias} onChange={(e) => setAlias(e.target.value)} placeholder="展示用名称" />
             </div>
             <div className="sm:col-span-2">
               <label className="mb-1 block text-xs font-bold text-ink-muted">描述</label>
@@ -142,7 +162,14 @@ export default function ProjectFormDialog({
               <>
                 <div className="sm:col-span-2">
                   <label className="mb-1 block text-xs font-bold text-ink-muted">仓库地址 *</label>
-                  <Input value={repoUrl} onChange={(e) => setRepoUrl(e.target.value)} required={source !== 'LOCAL'}
+                  <Input value={repoUrl} onChange={(e) => {
+                    const v = e.target.value;
+                    setRepoUrl(v);
+                    if (!nameTouched.current) {
+                      const n = detectName(v);
+                      if (n) setName(n);
+                    }
+                  }} required={source !== 'LOCAL'}
                     placeholder="https://github.com/org/repo.git" />
                 </div>
                 <div>
@@ -159,7 +186,14 @@ export default function ProjectFormDialog({
             {source === 'LOCAL' && (
               <div className="sm:col-span-2">
                 <label className="mb-1 block text-xs font-bold text-ink-muted">本地源码目录 *</label>
-                <Input value={localPath} onChange={(e) => setLocalPath(e.target.value)} required={source === 'LOCAL'}
+                <Input value={localPath} onChange={(e) => {
+                  const v = e.target.value;
+                  setLocalPath(v);
+                  if (!nameTouched.current) {
+                    const n = detectName(v);
+                    if (n) setName(n);
+                  }
+                }} required={source === 'LOCAL'}
                   placeholder="/Users/you/projects/my-app" />
               </div>
             )}

@@ -108,6 +108,7 @@ export interface SessionUser {
 export interface Project {
   id: string;
   name: string;
+  alias?: string;
   description?: string;
   source: 'GITHUB' | 'GITLAB' | 'LOCAL';
   repoUrl?: string;

@@ -72,6 +72,7 @@ public class ProjectService {
 
     public Project update(String id, Project update) {
         Project existing = get(id);
+        if (update.getAlias() != null) existing.setAlias(update.getAlias());
         if (update.getName() != null) {
             list().stream().filter(p -> !p.getId().equals(id) && p.getName().equalsIgnoreCase(update.getName()))
                     .findFirst().ifPresent(p -> {
