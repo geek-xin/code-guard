@@ -106,7 +106,7 @@ public class ProjectController {
                     .name(req.getName())
                     .alias(blankToNull(req.getAlias()))
                     .tags(normalizeTags(req.getTags()))
-                    .group(blankToNull(req.getGroup()))
+                    .group(req.getGroup())
                     .description(req.getDescription())
                     .source(req.getSource() == null ? null : req.getSource().toUpperCase())
                     .repoUrl(req.getRepoUrl())

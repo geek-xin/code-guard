@@ -16,7 +16,7 @@ const COLLAPSE_KEY = 'cg_sidebar_collapsed';
 
 export default function Layout({ children, current }: { children: React.ReactNode; current: string }) {
   const [user, setUser] = useState<SessionUser | null>(null);
-  const [collapsed, setCollapsed] = useState(() => localStorage.getItem(COLLAPSE_KEY) === '1');
+  const [collapsed, setCollapsed] = useState(() => localStorage.getItem(COLLAPSE_KEY) !== '0');
 
   useEffect(() => {
     api.me().then(setUser).catch(() => {});
@@ -80,20 +80,21 @@ export default function Layout({ children, current }: { children: React.ReactNod
             );
           })}
 
-          {/* 折叠侧边栏（设置下方） */}
-          <button
-            type="button"
-            onClick={toggle}
-            title={collapsed ? '展开侧边栏' : '收起侧边栏'}
-            className={cn(
-              'flex items-center gap-2.5 rounded-md border-chunky text-sm font-bold transition-all',
-              collapsed ? 'justify-center px-0 py-2.5' : 'px-3 py-2.5',
-              'border-transparent text-ink-subtle hover:bg-paper hover:text-ink',
-            )}
-          >
-            {collapsed ? <PanelLeftOpen className="h-4 w-4 shrink-0" /> : <PanelLeftClose className="h-4 w-4 shrink-0" />}
-            {!collapsed && '收起侧边栏'}
-          </button>
+          <div className={cn('border-t-2 border-ink/10 pt-2', collapsed ? 'mt-2 px-2' : 'mt-2 px-3')}>
+            <button
+              type="button"
+              onClick={toggle}
+              title={collapsed ? '展开侧边栏' : '收起侧边栏'}
+              className={cn(
+                'flex w-full items-center gap-2.5 rounded-md border-chunky text-sm font-bold transition-all',
+                collapsed ? 'justify-center px-0 py-2.5' : 'px-3 py-2.5',
+                'border-transparent text-ink-subtle hover:bg-paper hover:text-ink',
+              )}
+            >
+              {collapsed ? <PanelLeftOpen className="h-4 w-4 shrink-0" /> : <PanelLeftClose className="h-4 w-4 shrink-0" />}
+              {!collapsed && '收起侧边栏'}
+            </button>
+          </div>
         </nav>
 
         {/* 用户区 */}
