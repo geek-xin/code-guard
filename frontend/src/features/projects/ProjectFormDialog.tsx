@@ -103,7 +103,7 @@ export default function ProjectFormDialog({
         name,
         alias: alias.trim() || undefined,
         tags: tags ? tags.split(/[,，;\n]/).map((t) => t.trim()).filter(Boolean) : undefined,
-        group: group.trim() || undefined,
+        group: group.trim(),
         description,
         source,
         branch: source === 'LOCAL' ? undefined : branch,

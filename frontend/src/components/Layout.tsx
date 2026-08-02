@@ -54,11 +54,6 @@ export default function Layout({ children, current }: { children: React.ReactNod
               <Shield className="h-6 w-6 text-white" strokeWidth={2.5} />
             </div>
           )}
-          {!collapsed && (
-            <button type="button" onClick={toggle} className="shrink-0 rounded p-1 text-ink-muted hover:bg-paper hover:text-ink" title="收起侧边栏">
-              <PanelLeftClose className="h-4 w-4" />
-            </button>
-          )}
         </div>
 
         {/* 导航 */}
@@ -84,6 +79,21 @@ export default function Layout({ children, current }: { children: React.ReactNod
               </a>
             );
           })}
+
+          {/* 折叠侧边栏（设置下方） */}
+          <button
+            type="button"
+            onClick={toggle}
+            title={collapsed ? '展开侧边栏' : '收起侧边栏'}
+            className={cn(
+              'flex items-center gap-2.5 rounded-md border-chunky text-sm font-bold transition-all',
+              collapsed ? 'justify-center px-0 py-2.5' : 'px-3 py-2.5',
+              'border-transparent text-ink-subtle hover:bg-paper hover:text-ink',
+            )}
+          >
+            {collapsed ? <PanelLeftOpen className="h-4 w-4 shrink-0" /> : <PanelLeftClose className="h-4 w-4 shrink-0" />}
+            {!collapsed && '收起侧边栏'}
+          </button>
         </nav>
 
         {/* 用户区 */}
@@ -120,21 +130,7 @@ export default function Layout({ children, current }: { children: React.ReactNod
                   </button>
                 </>
               )}
-              {collapsed && (
-                <button
-                  title="展开侧边栏"
-                  className="rounded p-1 text-ink-muted hover:bg-paper hover:text-ink"
-                  onClick={toggle}
-                >
-                  <PanelLeftOpen className="h-4 w-4" />
-                </button>
-              )}
             </div>
-          )}
-          {collapsed && !user && (
-            <button type="button" onClick={toggle} className="w-full rounded p-1 text-ink-muted hover:bg-paper" title="展开侧边栏">
-              <PanelLeftOpen className="mx-auto h-4 w-4" />
-            </button>
           )}
         </div>
       </aside>

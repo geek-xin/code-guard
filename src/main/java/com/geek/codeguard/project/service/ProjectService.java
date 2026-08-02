@@ -78,7 +78,10 @@ public class ProjectService {
             existing.setAlias(update.getAlias());
         }
         if (update.getTags() != null) existing.setTags(update.getTags());
-        if (update.getGroup() != null) existing.setGroup(update.getGroup());
+        if (update.getGroup() != null) {
+            // 空串/空白表示“未分组”，置 null 使其生效
+            existing.setGroup(update.getGroup().isBlank() ? null : update.getGroup().trim());
+        }
         if (update.getName() != null) {
             list().stream().filter(p -> !p.getId().equals(id) && p.getName().equalsIgnoreCase(update.getName()))
                     .findFirst().ifPresent(p -> {
