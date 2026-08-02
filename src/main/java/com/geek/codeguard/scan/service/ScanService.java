@@ -186,7 +186,15 @@ public class ScanService implements ScanProgressListener {
             if (cancelled(scanId)) { finishStopped(scanId, record); return; }
 
             if (activeScopes.contains("SAST")) {
-                findings.addAll(sastRuleEngine.scan(root, project.getId(), scanId, this));
+                try {
+                    findings.addAll(sastRuleEngine.scan(root, project.getId(), scanId, this, cancelFlags.get(scanId)));
+                } catch (java.util.concurrent.CancellationException ce) {
+                    if (cancelled(scanId)) {
+                        finishStopped(scanId, record);
+                        return;
+                    }
+                    throw ce;
+                }
             } else {
                 updateStage(record, "SAST", "COMPLETED", "已跳过");
             }

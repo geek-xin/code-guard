@@ -104,7 +104,8 @@ public class SastRuleEngine {
         log.info("SAST 规则引擎就绪：{} 条规则", rules.size());
     }
 
-    public List<ScanFinding> scan(Path root, String projectId, String scanId, ScanProgressListener listener) {
+    public List<ScanFinding> scan(Path root, String projectId, String scanId, ScanProgressListener listener,
+                                   java.util.concurrent.atomic.AtomicBoolean cancelled) {
         List<Path> files = fileScanner.listFiles(root);
         listener.onStage("SAST", "RUNNING", "待分析文件 " + files.size() + " 个（并行 " + parallelPool.getClass().getSimpleName() + "）");
         int total = files.size();
@@ -124,6 +125,9 @@ public class SastRuleEngine {
         for (List<Path> chunk : chunks) {
             futures.add(CompletableFuture.runAsync(() -> {
                 for (Path file : chunk) {
+                    if (cancelled != null && cancelled.get()) {
+                        throw new java.util.concurrent.CancellationException("扫描已取消");
+                    }
                     int done = doneCount.incrementAndGet();
                     listener.onProgress("SAST", done, total, fileScanner.relative(root, file));
                     scanFile(root, file, projectId, scanId, listener, allFindings);
@@ -133,6 +137,10 @@ public class SastRuleEngine {
         CompletableFuture.allOf(futures.toArray(new CompletableFuture[0])).join();
         listener.onStage("SAST", "COMPLETED", "SAST 完成，发现 " + allFindings.size() + " 个问题");
         return new ArrayList<>(allFindings);
+    }
+
+    public List<ScanFinding> scan(Path root, String projectId, String scanId, ScanProgressListener listener) {
+        return scan(root, projectId, scanId, listener, new java.util.concurrent.atomic.AtomicBoolean(false));
     }
 
     private void scanFile(Path root, Path file, String projectId, String scanId,
