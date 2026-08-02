@@ -11,6 +11,19 @@ export default function ScansPage() {
   const [projects, setProjects] = useState<Project[]>([]);
   const [scans, setScans] = useState<ScanRecord[]>([]);
   const [loading, setLoading] = useState(true);
+  const [filterProjectId, setFilterProjectId] = useState<string | null>(null);
+
+  // 解析 #/scans?project=xxx 过滤参数
+  useEffect(() => {
+    const parse = () => {
+      const h = window.location.hash;
+      const m = h.match(/[?&]project=([^&]+)/);
+      setFilterProjectId(m ? decodeURIComponent(m[1]) : null);
+    };
+    parse();
+    window.addEventListener('hashchange', parse);
+    return () => window.removeEventListener('hashchange', parse);
+  }, []);
   const [nameFilter, setNameFilter] = useState('');
   const [statusFilter, setStatusFilter] = useState('');
   const [collapsed, setCollapsed] = useState<Set<string>>(new Set());
@@ -34,13 +47,14 @@ export default function ScansPage() {
 
   const filtered = useMemo(() => {
     return scans.filter((s) => {
+      if (filterProjectId && s.projectId !== filterProjectId) return false;
       const p = projById.get(s.projectId);
       const name = p?.alias || p?.name || s.projectName || '';
       if (nameFilter && !name.toLowerCase().includes(nameFilter.trim().toLowerCase())) return false;
       if (statusFilter && s.status !== statusFilter) return false;
       return true;
     });
-  }, [scans, projById, nameFilter, statusFilter]);
+  }, [scans, projById, nameFilter, statusFilter, filterProjectId]);
 
   /** 分组：同一仓库地址/本地目录一组 */
   const groups = useMemo(() => {
@@ -80,7 +94,26 @@ export default function ScansPage() {
     <div className="space-y-5">
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
-          <h1 className="text-2xl font-black text-ink">扫描记录</h1>
+          <h1 className="flex items-center gap-2 text-2xl font-black text-ink">
+            扫描记录
+            {filterProjectId && (() => {
+              const p = projById.get(filterProjectId);
+              const name = p?.alias || p?.name || '该项目';
+              return (
+                <span className="flex items-center gap-2 rounded-md border-chunky border-ink bg-white px-2.5 py-1 text-sm font-bold text-ink shadow-chunky-sm">
+                  {name}
+                  <button
+                    type="button"
+                    onClick={() => { setFilterProjectId(null); window.location.hash = '#/scans'; }}
+                    className="text-ink-subtle hover:text-error"
+                    title="清除过滤"
+                  >
+                    ×
+                  </button>
+                </span>
+              );
+            })()}
+          </h1>
           <p className="text-sm font-semibold text-ink-muted">
             按仓库地址 / 本地目录分组，点击记录查看实时进度与漏洞详情
           </p>

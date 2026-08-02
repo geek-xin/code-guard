@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { Plus, RefreshCw, ScanSearch, Pencil, Trash2, FolderGit2, Github, Gitlab, FolderOpen, Clock, Mail, Search, Tags } from 'lucide-react';
+import { Plus, RefreshCw, ScanSearch, Pencil, Trash2, FolderGit2, Github, Gitlab, FolderOpen, Clock, Mail, Search, Tags, History } from 'lucide-react';
 import GroupManageDialog from '@/features/groups/GroupManageDialog';
 import { api, Project, ProjectGroup } from '@/lib/api';
 import { Card, CardContent } from '@/components/ui/card';
@@ -333,6 +333,9 @@ function ProjectCard({ project, busy, onScan, onSync, onEdit, onDelete }: {
           </Button>
           <Button size="sm" variant="outline" onClick={onSync} disabled={busy}>
             <RefreshCw className={`h-3.5 w-3.5 ${busy ? 'animate-spin' : ''}`} /> 同步
+          </Button>
+          <Button size="sm" variant="outline" onClick={() => (window.location.hash = `#/scans?project=${project.id}`)} title="查看扫描记录">
+            <History className="h-3.5 w-3.5" /> 记录
           </Button>
           <div className="ml-auto flex gap-1">
             <Button size="icon" variant="ghost" onClick={onEdit} title="编辑">
