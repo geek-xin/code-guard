@@ -49,7 +49,8 @@ export default function App() {
     );
   }
 
-  const segs = hash.replace(/^#\//, '').split('/').filter(Boolean);
+  // 剥离 query（如 #/scans?project=xxx -> scans），避免污染路由匹配
+  const segs = hash.replace(/^#\//, '').split('?')[0].split('/').filter(Boolean);
   const page = segs[0] || 'dashboard';
 
   return (
