@@ -7,7 +7,10 @@ export function TrendChart({ data }: { data: TrendPoint[] }) {
   if (!data.length) {
     return <div className="py-16 text-center text-sm font-semibold text-ink-subtle">暂无趋势数据</div>;
   }
-  const max = Math.max(1, ...data.map((d) => d.total));
+  const rawMax = Math.max(1, ...data.map((d) => d.total));
+  // Y 轴刻度圆整到整齐步长
+  const yStep = rawMax <= 50 ? 10 : rawMax <= 200 ? 50 : rawMax <= 500 ? 100 : 200;
+  const max = Math.ceil(rawMax / yStep) * yStep;
   const W = 720;
   const H = 220;
   const padL = 34;
@@ -15,8 +18,10 @@ export function TrendChart({ data }: { data: TrendPoint[] }) {
   const padT = 14;
   const innerW = W - padL - 10;
   const innerH = H - padT - padB;
-  const barW = Math.max(10, Math.min(34, innerW / data.length - 8));
-  const step = data.length > 1 ? innerW / (data.length - 1) : innerW;
+  // 柱状条在宽度内均匀分布（即使只有 2 个点也不会偏两端）
+  const n = data.length;
+  const cell = innerW / n;
+  const barW = Math.max(14, Math.min(36, cell * 0.62));
 
   return (
     <div className="w-full">
@@ -35,7 +40,7 @@ export function TrendChart({ data }: { data: TrendPoint[] }) {
         })}
         {/* 堆叠柱状图 */}
         {data.map((d, i) => {
-          const x = padL + step * (data.length > 1 ? i : 0) - barW / 2;
+          const x = padL + i * cell + (cell - barW) / 2;
           let acc = 0;
           return (
             <g key={d.date}>
