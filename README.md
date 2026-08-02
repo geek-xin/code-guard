@@ -38,7 +38,7 @@
 | 功能 | 说明 |
 | --- | --- |
 | 登录方式 | 本地账号注册/登录；**GitHub / GitLab OAuth**；支持「记住我」30 天免登录 |
-| 项目接入 | GitHub 仓库 / GitLab 仓库（HTTPS 克隆，支持私有仓库 Token）/ 本地目录 |
+| 项目接入 | GitHub 仓库 / GitLab 仓库（HTTPS/HTTP 克隆，支持远端分支选择拉取；私有仓库需 Token，GitLab 拉取分支必须携带 Token）/ 本地目录 |
 | 实时扫描 | 一键扫描，SSE 推送每个阶段进度（拉取 → 探测 → SCA → SAST → Agent）与实时漏洞流 |
 | 定时扫描 | 每个项目可配置 cron 表达式，调度器自动触发；也支持按分钟定时扫描 |
 | 多工程并行 | 全局扫描线程池 + SAST 文件级并行 + OSV 并发限流与请求合并 |
@@ -216,7 +216,8 @@ cd codeguard-0.1.0
 
 1. GitHub：Settings → Developer settings → OAuth Apps → New OAuth App，回调地址填 `http://localhost:9997/api/auth/github/callback`，获取 Client ID / Secret。
 2. GitLab：User Settings → Applications，回调地址填 `http://localhost:9997/api/auth/gitlab/callback`，勾选 `read_api` / `api` scope。
-3. 写入环境变量后重启。
+3. **推荐**：管理员在「设置 → 第三方登录」页面直接填写 Client ID / Secret / 回调地址，保存后热生效（写入 `config/settings.json`，优先于环境变量），登录页即支持 GitHub / GitLab 一键登录。
+4. 或写入环境变量（`GITHUB_CLIENT_ID` / `GITHUB_CLIENT_SECRET` / `GITLAB_CLIENT_ID` / `GITLAB_CLIENT_SECRET` / `GITLAB_BASE_URL`）后重启。
 
 ### Review Agent 配置
 

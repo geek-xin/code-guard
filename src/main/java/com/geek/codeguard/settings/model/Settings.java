@@ -15,6 +15,8 @@ import lombok.NoArgsConstructor;
 public class Settings {
     private Agent agent;
     private Smtp smtp;
+    /** 第三方登录（OAuth）全局配置：保存后热生效，优先于 application.yml 环境变量 */
+    private OAuth oauth;
 
     @Data
     @Builder
@@ -45,5 +47,19 @@ public class Settings {
         private String apiKey;
         /** 模型名 */
         private String model;
+    }
+
+    @Data
+    @Builder
+    @NoArgsConstructor
+    @AllArgsConstructor
+    public static class OAuth {
+        private String githubClientId;
+        private String githubClientSecret;
+        private String githubRedirectUri;
+        private String gitlabClientId;
+        private String gitlabClientSecret;
+        private String gitlabRedirectUri;
+        private String gitlabBaseUrl;
     }
 }

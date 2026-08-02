@@ -41,7 +41,7 @@ export default function LoginPage() {
         : await api.gitlabAuthorize(remember);
       window.location.href = res.url;
     } catch (err: any) {
-      toast.error(err?.message ?? 'OAuth 配置不可用，请在 application.yml 中配置 client-id/secret');
+      toast.error(err?.message ?? 'OAuth 配置不可用，请管理员在「设置 → 第三方登录」中配置 Client ID / Secret');
     }
   };
 

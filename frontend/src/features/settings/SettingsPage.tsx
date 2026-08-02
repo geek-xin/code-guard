@@ -26,6 +26,14 @@ export default function SettingsPage() {
   const [smtpFrom, setSmtpFrom] = useState('');
   const [smtpSsl, setSmtpSsl] = useState(true);
   const [smtpRecipients, setSmtpRecipients] = useState('');
+  // OAuth
+  const [ghClientId, setGhClientId] = useState('');
+  const [ghSecret, setGhSecret] = useState('');
+  const [ghRedirect, setGhRedirect] = useState('http://localhost:9997/api/auth/github/callback');
+  const [glClientId, setGlClientId] = useState('');
+  const [glSecret, setGlSecret] = useState('');
+  const [glRedirect, setGlRedirect] = useState('http://localhost:9997/api/auth/gitlab/callback');
+  const [glBaseUrl, setGlBaseUrl] = useState('https://gitlab.com');
 
   const load = () => {
     api.getSettings().then((s) => {
@@ -42,6 +50,13 @@ export default function SettingsPage() {
       setSmtpFrom(s.smtp.from ?? '');
       setSmtpSsl(s.smtp.ssl);
       setSmtpRecipients((s.smtp.defaultRecipients ?? []).join(', '));
+      setGhClientId('');
+      setGhSecret('');
+      setGhRedirect(s.oauth.githubRedirectUri || 'http://localhost:9997/api/auth/github/callback');
+      setGlClientId('');
+      setGlSecret('');
+      setGlRedirect(s.oauth.gitlabRedirectUri || 'http://localhost:9997/api/auth/gitlab/callback');
+      setGlBaseUrl(s.oauth.gitlabBaseUrl || 'https://gitlab.com');
     }).catch(() => {});
   };
 
@@ -87,10 +102,21 @@ export default function SettingsPage() {
           ssl: smtpSsl,
           defaultRecipients: smtpRecipients ? smtpRecipients.split(/[,，;\n]/).map((e) => e.trim()).filter(Boolean) : undefined,
         },
+        oauth: {
+          githubClientId: ghClientId.trim() || undefined,
+          githubClientSecret: ghSecret.trim() || undefined,
+          githubRedirectUri: ghRedirect.trim() || undefined,
+          gitlabClientId: glClientId.trim() || undefined,
+          gitlabClientSecret: glSecret.trim() || undefined,
+          gitlabRedirectUri: glRedirect.trim() || undefined,
+          gitlabBaseUrl: glBaseUrl.trim() || undefined,
+        },
       };
       const updated = await api.updateSettings(payload);
       setView(updated);
       setApiKey('');
+      setGhSecret('');
+      setGlSecret('');
       toast.success('全局配置已保存并生效（无需重启）');
     } catch (e: any) {
       toast.error(e?.message ?? '保存失败');
@@ -295,32 +321,103 @@ export default function SettingsPage() {
         </CardContent>
       </Card>
 
-      {/* OAuth 状态 */}
+      {/* 第三方登录（OAuth） */}
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <ShieldCheck className="h-4 w-4" /> 第三方登录（OAuth）
           </CardTitle>
-          <CardDescription>OAuth 客户端密钥需通过环境变量配置（GITHUB_CLIENT_ID/SECRET、GITLAB_CLIENT_ID/SECRET）</CardDescription>
+          <CardDescription>
+            配置 GitHub / GitLab OAuth 应用后，登录页支持一键使用第三方账号登录；作为平台全局登录方式，保存后热生效（优先于环境变量）
+          </CardDescription>
         </CardHeader>
-        <CardContent className="space-y-2">
-          <div className="flex items-center justify-between rounded-md border-2 border-ink/10 bg-paper px-3 py-2.5">
-            <span className="flex items-center gap-2 text-sm font-bold text-ink"><Github className="h-4 w-4" /> GitHub OAuth</span>
-            {view.oauth.githubConfigured
-              ? <Badge variant="success">已配置</Badge>
-              : <Badge variant="info">未配置</Badge>}
+        <CardContent className="space-y-4">
+          <div className="flex flex-wrap items-center gap-3">
+            <div className="flex items-center gap-2">
+              <span className="flex items-center gap-2 text-sm font-bold text-ink">
+                <Github className="h-4 w-4" /> GitHub OAuth
+              </span>
+              {view.oauth.githubConfigured
+                ? <Badge variant="success">已配置</Badge>
+                : <Badge variant="info">未配置</Badge>}
+            </div>
+            <div className="flex items-center gap-2">
+              <span className="flex items-center gap-2 text-sm font-bold text-ink">
+                <Gitlab className="h-4 w-4" /> GitLab OAuth
+              </span>
+              {view.oauth.gitlabConfigured
+                ? <Badge variant="success">已配置（{view.oauth.gitlabBaseUrl}）</Badge>
+                : <Badge variant="info">未配置</Badge>}
+            </div>
+            <Badge variant="outline">
+              来源：{view.oauth.source === 'settings' ? '界面设置' : '环境变量'}
+            </Badge>
           </div>
-          <div className="flex items-center justify-between rounded-md border-2 border-ink/10 bg-paper px-3 py-2.5">
-            <span className="flex items-center gap-2 text-sm font-bold text-ink"><Gitlab className="h-4 w-4" /> GitLab OAuth</span>
-            {view.oauth.gitlabConfigured
-              ? <Badge variant="success">已配置（{view.oauth.gitlabBaseUrl}）</Badge>
-              : <Badge variant="info">未配置</Badge>}
+
+          <div className="rounded-md border-2 border-ink/10 bg-paper p-3">
+            <div className="mb-2 text-xs font-black text-ink">GitHub</div>
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+              <div>
+                <label className="mb-1 block text-xs font-bold text-ink-muted">Client ID</label>
+                <Input value={ghClientId} onChange={(e) => setGhClientId(e.target.value)}
+                  placeholder={view.oauth.githubConfigured ? '已配置（留空保持不变）' : 'GitHub OAuth App Client ID'} />
+              </div>
+              <div>
+                <label className="mb-1 block text-xs font-bold text-ink-muted">Client Secret</label>
+                <Input type="password" value={ghSecret} onChange={(e) => setGhSecret(e.target.value)}
+                  placeholder={view.oauth.githubConfigured ? '已配置（留空保持不变）' : 'GitHub OAuth App Client Secret'} />
+              </div>
+              <div className="sm:col-span-2">
+                <label className="mb-1 block text-xs font-bold text-ink-muted">回调地址（Redirect URI）</label>
+                <Input value={ghRedirect} onChange={(e) => setGhRedirect(e.target.value)}
+                  placeholder="http://localhost:9997/api/auth/github/callback" />
+                <p className="mt-1 text-[11px] font-semibold text-ink-subtle">
+                  在 GitHub → Settings → Developer settings → OAuth Apps 创建应用，授权范围勾选 read:user、repo
+                </p>
+              </div>
+            </div>
           </div>
-          <p className="pt-1 text-xs font-semibold text-ink-subtle">
-            配置方法见 README「GitHub / GitLab OAuth 配置」；设置回调地址为
-            <code> http://localhost:9997/api/auth/github/callback</code> 与
-            <code> /api/auth/gitlab/callback</code>
-          </p>
+
+          <div className="rounded-md border-2 border-ink/10 bg-paper p-3">
+            <div className="mb-2 text-xs font-black text-ink">GitLab</div>
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+              <div>
+                <label className="mb-1 block text-xs font-bold text-ink-muted">Base URL</label>
+                <Input value={glBaseUrl} onChange={(e) => setGlBaseUrl(e.target.value)}
+                  placeholder="https://gitlab.com" />
+              </div>
+              <div>
+                <label className="mb-1 block text-xs font-bold text-ink-muted">Client ID</label>
+                <Input value={glClientId} onChange={(e) => setGlClientId(e.target.value)}
+                  placeholder={view.oauth.gitlabConfigured ? '已配置（留空保持不变）' : 'GitLab Application ID'} />
+              </div>
+              <div>
+                <label className="mb-1 block text-xs font-bold text-ink-muted">Client Secret</label>
+                <Input type="password" value={glSecret} onChange={(e) => setGlSecret(e.target.value)}
+                  placeholder={view.oauth.gitlabConfigured ? '已配置（留空保持不变）' : 'GitLab Application Secret'} />
+              </div>
+              <div>
+                <label className="mb-1 block text-xs font-bold text-ink-muted">回调地址（Redirect URI）</label>
+                <Input value={glRedirect} onChange={(e) => setGlRedirect(e.target.value)}
+                  placeholder="http://localhost:9997/api/auth/gitlab/callback" />
+              </div>
+              <div className="sm:col-span-2">
+                <p className="text-[11px] font-semibold text-ink-subtle">
+                  在 GitLab → User Settings → Applications 创建应用，回调地址填上面的 Redirect URI，勾选 read_api / api 范围
+                </p>
+              </div>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-2">
+            <Button onClick={save} disabled={saving}>
+              {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
+              保存配置
+            </Button>
+            <Button variant="ghost" onClick={load}>
+              <RefreshCw className="h-4 w-4" /> 刷新
+            </Button>
+          </div>
         </CardContent>
       </Card>
     </div>

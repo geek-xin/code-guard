@@ -66,6 +66,11 @@ export const api = {
   updateProject: (id: string, data: Partial<Project>) => request<Project>(`/projects/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
   deleteProject: (id: string) => request<void>(`/projects/${id}`, { method: 'DELETE' }),
   syncProject: (id: string) => request<{ status: string; message: string }>(`/projects/${id}/sync`, { method: 'POST' }),
+  listBranches: (source: string, repoUrl: string, token?: string) =>
+    request<BranchList>('/projects/branches', {
+      method: 'POST',
+      body: JSON.stringify({ source, repoUrl, token: token || undefined }),
+    }),
 
   // scans
   startScan: (projectId: string, scope = 'ALL') =>
@@ -236,6 +241,11 @@ export interface ProjectGroup {
   createdAt: string;
 }
 
+export interface BranchList {
+  defaultBranch: string;
+  branches: string[];
+}
+
 export interface BrowseResult {
   current: string;
   parent?: string;
@@ -276,6 +286,9 @@ export interface SettingsView {
     githubConfigured: boolean;
     gitlabConfigured: boolean;
     gitlabBaseUrl: string;
+    githubRedirectUri?: string;
+    gitlabRedirectUri?: string;
+    source?: string;
   };
 }
 
@@ -295,6 +308,15 @@ export interface SettingsPayload {
     from?: string;
     ssl?: boolean;
     defaultRecipients?: string[];
+  };
+  oauth?: {
+    githubClientId?: string;
+    githubClientSecret?: string;
+    githubRedirectUri?: string;
+    gitlabClientId?: string;
+    gitlabClientSecret?: string;
+    gitlabRedirectUri?: string;
+    gitlabBaseUrl?: string;
   };
 }
 

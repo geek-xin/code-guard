@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -9,7 +9,7 @@ import { toast } from 'sonner';
 import { Loader2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import DirectoryPicker from '@/components/directory/DirectoryPicker';
-import { FolderOpen, Tag } from 'lucide-react';
+import { FolderOpen, GitBranch, Tag } from 'lucide-react';
 
 const SOURCES = [
   { key: 'GITHUB', label: 'GitHub 仓库', desc: '通过 HTTPS 克隆' },
@@ -37,6 +37,11 @@ export default function ProjectFormDialog({
   const [source, setSource] = useState('GITHUB');
   const [repoUrl, setRepoUrl] = useState('');
   const [branch, setBranch] = useState('main');
+  const [branches, setBranches] = useState<string[]>([]);
+  const [defaultBranch, setDefaultBranch] = useState('');
+  const [branchLoading, setBranchLoading] = useState(false);
+  const [branchError, setBranchError] = useState('');
+  const [branchLoaded, setBranchLoaded] = useState(false);
   const [localPath, setLocalPath] = useState('');
   const [token, setToken] = useState('');
   const [scheduleCron, setScheduleCron] = useState('');
@@ -82,6 +87,10 @@ export default function ProjectFormDialog({
       setSource(project?.source ?? 'GITHUB');
       setRepoUrl(project?.repoUrl ?? '');
       setBranch(project?.branch ?? 'main');
+      setBranches([]);
+      setDefaultBranch('');
+      setBranchLoaded(false);
+      setBranchError('');
       setLocalPath(project?.localPath ?? '');
       setToken('');
       setScheduleCron(project?.scheduleCron ?? '');
@@ -96,6 +105,47 @@ export default function ProjectFormDialog({
       setEnabled(project?.enabled ?? true);
     }
   }, [open, project]);
+
+  /** 仓库地址/来源变化后，清空已加载的分支（编辑已有项目时仅在需要时手动加载） */
+  useEffect(() => {
+    if (!open) return;
+    setBranches([]);
+    setDefaultBranch('');
+    setBranchLoaded(false);
+    setBranchError('');
+  }, [open, source, repoUrl]);
+
+  /** 加载远端分支（GitHub 公开仓库无需 Token；GitLab 必须提供 Token） */
+  const loadBranches = useCallback(async () => {
+    const url = repoUrl.trim();
+    if (!url) return;
+    setBranchLoading(true);
+    setBranchError('');
+    try {
+      const res = await api.listBranches(source, url, token.trim() || undefined);
+      setBranches(res.branches);
+      setDefaultBranch(res.defaultBranch);
+      setBranchLoaded(true);
+      setBranch((prev) => (!prev || !res.branches.includes(prev))
+        ? (res.defaultBranch || res.branches[0] || '')
+        : prev);
+    } catch (err: any) {
+      setBranches([]);
+      setBranchLoaded(true);
+      setBranchError(err?.message ?? '获取分支失败');
+    } finally {
+      setBranchLoading(false);
+    }
+  }, [source, repoUrl, token]);
+
+  /** 新建项目时，仓库地址/Token 停顿后自动加载分支 */
+  useEffect(() => {
+    if (!open || source === 'LOCAL' || project) return;
+    const url = repoUrl.trim();
+    if (!/^https?:\/\/|^git@/.test(url)) return;
+    const t = setTimeout(loadBranches, 800);
+    return () => clearTimeout(t);
+  }, [open, source, repoUrl, token, project, loadBranches]);
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -224,12 +274,42 @@ export default function ProjectFormDialog({
                 </div>
                 <div>
                   <label className="mb-1 block text-xs font-bold text-ink-muted">分支</label>
-                  <Input value={branch} onChange={(e) => setBranch(e.target.value)} placeholder="main" />
+                  <div className="flex items-center gap-2">
+                    <Input value={branch} onChange={(e) => setBranch(e.target.value)} placeholder="main" />
+                    <Button type="button" variant="outline" size="sm"
+                      onClick={loadBranches}
+                      disabled={branchLoading || !repoUrl.trim()}>
+                      {branchLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <GitBranch className="h-4 w-4" />}
+                      {branchLoading ? '加载中' : '加载分支'}
+                    </Button>
+                  </div>
+                  {branchLoaded && branches.length > 0 && (
+                    <div className="mt-2 flex items-center gap-2">
+                      <select
+                        value={branches.includes(branch) ? branch : ''}
+                        onChange={(e) => e.target.value && setBranch(e.target.value)}
+                        className="h-8 w-full rounded-md border-chunky border-ink bg-white px-2 text-xs font-semibold text-ink focus:border-primary focus:outline-none"
+                      >
+                        <option value="">选择分支…</option>
+                        {branches.map((b) => (
+                          <option key={b} value={b}>{b}{b === defaultBranch ? '（默认）' : ''}</option>
+                        ))}
+                      </select>
+                    </div>
+                  )}
+                  {branchError && (
+                    <p className="mt-1 text-[11px] font-semibold text-red-600">{branchError}</p>
+                  )}
                 </div>
                 <div>
                   <label className="mb-1 block text-xs font-bold text-ink-muted">访问令牌（私有仓库）</label>
                   <Input type="password" value={token} onChange={(e) => setToken(e.target.value)}
                     placeholder={project?.tokenConfigured ? '已配置，留空保持不变' : 'GitHub/GitLab PAT'} />
+                  {source === 'GITLAB' && (
+                    <p className="mt-1 text-[11px] font-semibold text-ink-muted">
+                      GitLab 需填写访问令牌（PAT）才能拉取分支与代码
+                    </p>
+                  )}
                 </div>
               </>
             )}

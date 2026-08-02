@@ -24,6 +24,8 @@ public enum ErrorCodeEnum {
     ALIAS_EXISTS("2005", "别名已存在，请更换"),
     CLONE_FAILED("2003", "代码拉取失败"),
     SOURCE_NOT_FOUND("2004", "本地源码目录不存在"),
+    GIT_AUTH_REQUIRED("2006", "需要 Git 认证"),
+    REMOTE_FETCH_FAILED("2007", "远程分支获取失败"),
 
     // scan
     SCAN_NOT_FOUND("3001", "扫描记录不存在"),

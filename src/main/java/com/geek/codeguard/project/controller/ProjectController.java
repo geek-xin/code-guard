@@ -1,6 +1,7 @@
 package com.geek.codeguard.project.controller;
 
 import com.geek.codeguard.common.result.Result;
+import com.geek.codeguard.project.git.GitRemoteService;
 import com.geek.codeguard.project.model.Project;
 import com.geek.codeguard.project.service.ProjectService;
 import jakarta.validation.Valid;
@@ -19,9 +20,11 @@ import java.util.Map;
 public class ProjectController {
 
     private final ProjectService projectService;
+    private final GitRemoteService gitRemoteService;
 
-    public ProjectController(ProjectService projectService) {
+    public ProjectController(ProjectService projectService, GitRemoteService gitRemoteService) {
         this.projectService = projectService;
+        this.gitRemoteService = gitRemoteService;
     }
 
     private static List<String> normalizeTags(List<String> tags) {
@@ -33,6 +36,14 @@ public class ProjectController {
 
     private static String blankToNull(String s) {
         return s == null || s.isBlank() ? null : s.trim();
+    }
+
+    /** 接口响应脱敏：Token 只存本地、绝不返回给前端 */
+    private static Project sanitize(Project p) {
+        if (p != null) {
+            p.setToken(null);
+        }
+        return p;
     }
 
     @Data
@@ -61,14 +72,32 @@ public class ProjectController {
         private boolean enabled = true;
     }
 
+    @Data
+    public static class BranchListRequest {
+        /** GITHUB / GITLAB */
+        private String source;
+        /** 仓库地址（HTTPS 或 SSH） */
+        private String repoUrl;
+        /** 访问令牌：GitHub 私有仓库可选，GitLab 必填 */
+        private String token;
+    }
+
+    /** 查询远程仓库分支列表（GitHub / GitLab），供添加项目时选择拉取分支 */
+    @PostMapping("/branches")
+    public Mono<Result<GitRemoteService.BranchList>> branches(@RequestBody BranchListRequest req) {
+        return Mono.fromCallable(() -> Result.success(gitRemoteService.listBranches(
+                req.getSource(), req.getRepoUrl(), req.getToken())));
+    }
+
     @GetMapping
     public Mono<Result<List<Project>>> list() {
-        return Mono.just(Result.success(projectService.list()));
+        return Mono.just(Result.success(projectService.list().stream()
+                .map(ProjectController::sanitize).toList()));
     }
 
     @GetMapping("/{id}")
     public Mono<Result<Project>> get(@PathVariable String id) {
-        return Mono.just(Result.success(projectService.get(id)));
+        return Mono.just(Result.success(sanitize(projectService.get(id))));
     }
 
     @PostMapping
@@ -97,7 +126,7 @@ public class ProjectController {
                     .scanIntervalMinutes(req.getScanIntervalMinutes())
                     .enabled(req.isEnabled())
                     .build();
-            return projectService.create(project);
+            return sanitize(projectService.create(project));
         }).map(Result::success);
     }
 
@@ -126,7 +155,7 @@ public class ProjectController {
                     .scanIntervalMinutes(req.getScanIntervalMinutes())
                     .enabled(req.isEnabled())
                     .build();
-            return projectService.update(id, update);
+            return sanitize(projectService.update(id, update));
         }).map(Result::success);
     }
 

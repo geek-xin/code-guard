@@ -131,8 +131,12 @@ public class AuthController {
     @ExceptionHandler(BusinessException.class)
     public ResponseEntity<Result<Void>> handleAuthError(BusinessException e) {
         if (ErrorCodeEnum.OAUTH_FAILED.getCode().equals(e.getCode())) {
+            // 错误信息可能包含中文/特殊字符，需编码后放入 URI
+            String error = java.net.URLEncoder.encode(
+                    e.getMessage() == null ? "OAuth 登录失败" : e.getMessage(),
+                    java.nio.charset.StandardCharsets.UTF_8);
             return ResponseEntity.status(HttpStatus.FOUND)
-                    .location(URI.create("/#/auth/callback?error=" + e.getMessage()))
+                    .location(URI.create("/#/auth/callback?error=" + error))
                     .build();
         }
         return ResponseEntity.badRequest().body(Result.failure(e.getCode(), e.getMessage()));

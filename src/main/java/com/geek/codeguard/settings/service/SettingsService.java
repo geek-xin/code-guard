@@ -71,6 +71,34 @@ public class SettingsService {
             }
             current.setAgent(next);
         }
+        if (update.getOauth() != null) {
+            Settings.OAuth cur = current.getOauth() == null ? Settings.OAuth.builder().build() : current.getOauth();
+            Settings.OAuth next = Settings.OAuth.builder()
+                    .githubClientId(notBlank(update.getOauth().getGithubClientId())
+                            ? update.getOauth().getGithubClientId().trim() : cur.getGithubClientId())
+                    .githubRedirectUri(notBlank(update.getOauth().getGithubRedirectUri())
+                            ? update.getOauth().getGithubRedirectUri().trim() : cur.getGithubRedirectUri())
+                    .gitlabClientId(notBlank(update.getOauth().getGitlabClientId())
+                            ? update.getOauth().getGitlabClientId().trim() : cur.getGitlabClientId())
+                    .gitlabRedirectUri(notBlank(update.getOauth().getGitlabRedirectUri())
+                            ? update.getOauth().getGitlabRedirectUri().trim() : cur.getGitlabRedirectUri())
+                    .gitlabBaseUrl(notBlank(update.getOauth().getGitlabBaseUrl())
+                            ? update.getOauth().getGitlabBaseUrl().trim() : cur.getGitlabBaseUrl())
+                    .githubClientSecret(cur.getGithubClientSecret())
+                    .gitlabClientSecret(cur.getGitlabClientSecret())
+                    .build();
+            // 密钥：传入非空且非脱敏占位符才覆盖
+            String gs = update.getOauth().getGithubClientSecret();
+            if (notBlank(gs) && !"******".equals(gs.trim())) {
+                next.setGithubClientSecret(gs.trim());
+            }
+            String ls = update.getOauth().getGitlabClientSecret();
+            if (notBlank(ls) && !"******".equals(ls.trim())) {
+                next.setGitlabClientSecret(ls.trim());
+            }
+            validateOAuth(next);
+            current.setOauth(next);
+        }
         jsonStore.write(file(), current);
         log.info("全局配置已更新: {}", Instant.now());
     }
@@ -107,6 +135,53 @@ public class SettingsService {
                 .build();
     }
 
+    /**
+     * OAuth 生效配置：config/settings.json 优先，缺省回退 application.yml 环境变量。
+     * 供 OAuthService 登录流程使用。
+     */
+    public Settings.OAuth effectiveOAuth() {
+        Settings.OAuth s = get().getOauth();
+        CodeGuardProperties.Auth.OAuth g = props.getAuth().getGithub();
+        CodeGuardProperties.Auth.OAuth l = props.getAuth().getGitlab();
+        return Settings.OAuth.builder()
+                .githubClientId(notBlank(s == null ? null : s.getGithubClientId())
+                        ? s.getGithubClientId() : g.getClientId())
+                .githubClientSecret(notBlank(s == null ? null : s.getGithubClientSecret())
+                        ? s.getGithubClientSecret() : g.getClientSecret())
+                .githubRedirectUri(notBlank(s == null ? null : s.getGithubRedirectUri())
+                        ? s.getGithubRedirectUri() : g.getRedirectUri())
+                .gitlabClientId(notBlank(s == null ? null : s.getGitlabClientId())
+                        ? s.getGitlabClientId() : l.getClientId())
+                .gitlabClientSecret(notBlank(s == null ? null : s.getGitlabClientSecret())
+                        ? s.getGitlabClientSecret() : l.getClientSecret())
+                .gitlabRedirectUri(notBlank(s == null ? null : s.getGitlabRedirectUri())
+                        ? s.getGitlabRedirectUri() : l.getRedirectUri())
+                .gitlabBaseUrl(notBlank(s == null ? null : s.getGitlabBaseUrl())
+                        ? s.getGitlabBaseUrl() : l.getBaseUrl())
+                .build();
+    }
+
+    public void validateOAuth(Settings.OAuth o) {
+        if (o == null) {
+            return;
+        }
+        if (notBlank(o.getGithubRedirectUri())
+                && !o.getGithubRedirectUri().startsWith("http://")
+                && !o.getGithubRedirectUri().startsWith("https://")) {
+            throw new BusinessException(ErrorCodeEnum.BAD_REQUEST, "GitHub 回调地址需以 http:// 或 https:// 开头");
+        }
+        if (notBlank(o.getGitlabRedirectUri())
+                && !o.getGitlabRedirectUri().startsWith("http://")
+                && !o.getGitlabRedirectUri().startsWith("https://")) {
+            throw new BusinessException(ErrorCodeEnum.BAD_REQUEST, "GitLab 回调地址需以 http:// 或 https:// 开头");
+        }
+        if (notBlank(o.getGitlabBaseUrl())
+                && !o.getGitlabBaseUrl().startsWith("http://")
+                && !o.getGitlabBaseUrl().startsWith("https://")) {
+            throw new BusinessException(ErrorCodeEnum.BAD_REQUEST, "GitLab Base URL 需以 http:// 或 https:// 开头");
+        }
+    }
+
     /** 脱敏视图（不含任何密钥明文） */
     public Map<String, Object> view() {
         Settings s = get();
@@ -130,10 +205,22 @@ public class SettingsService {
         smtpView.put("defaultRecipients", smtp != null && smtp.getDefaultRecipients() != null ? smtp.getDefaultRecipients() : java.util.List.of());
         smtpView.put("ready", smtpReady());
 
+        Settings.OAuth eff = effectiveOAuth();
+        Settings.OAuth saved = get().getOauth();
+        boolean fromSettings = saved != null && (notBlank(saved.getGithubClientId())
+                || notBlank(saved.getGithubClientSecret())
+                || notBlank(saved.getGithubRedirectUri())
+                || notBlank(saved.getGitlabClientId())
+                || notBlank(saved.getGitlabClientSecret())
+                || notBlank(saved.getGitlabRedirectUri())
+                || notBlank(saved.getGitlabBaseUrl()));
         Map<String, Object> oauth = new LinkedHashMap<>();
-        oauth.put("githubConfigured", notBlank(props.getAuth().getGithub().getClientId()));
-        oauth.put("gitlabConfigured", notBlank(props.getAuth().getGitlab().getClientId()));
-        oauth.put("gitlabBaseUrl", props.getAuth().getGitlab().getBaseUrl());
+        oauth.put("githubConfigured", notBlank(eff.getGithubClientId()));
+        oauth.put("gitlabConfigured", notBlank(eff.getGitlabClientId()));
+        oauth.put("gitlabBaseUrl", eff.getGitlabBaseUrl());
+        oauth.put("githubRedirectUri", eff.getGithubRedirectUri());
+        oauth.put("gitlabRedirectUri", eff.getGitlabRedirectUri());
+        oauth.put("source", fromSettings ? "settings" : "env");
 
         Map<String, Object> result = new LinkedHashMap<>();
         result.put("agent", agent);

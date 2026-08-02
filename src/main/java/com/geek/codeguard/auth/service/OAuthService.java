@@ -3,7 +3,8 @@ package com.geek.codeguard.auth.service;
 import com.geek.codeguard.auth.model.User;
 import com.geek.codeguard.common.enums.ErrorCodeEnum;
 import com.geek.codeguard.common.exception.BusinessException;
-import com.geek.codeguard.config.CodeGuardProperties;
+import com.geek.codeguard.settings.model.Settings;
+import com.geek.codeguard.settings.service.SettingsService;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.extern.slf4j.Slf4j;
@@ -26,31 +27,39 @@ import java.util.stream.Collectors;
 @Slf4j
 public class OAuthService {
 
-    private final CodeGuardProperties props;
+    private final SettingsService settingsService;
     private final ObjectMapper mapper;
     private final HttpClient http;
 
-    public OAuthService(CodeGuardProperties props) {
-        this.props = props;
+    public OAuthService(SettingsService settingsService) {
+        this.settingsService = settingsService;
         this.mapper = new ObjectMapper();
         this.http = HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(10)).build();
     }
 
     public String githubAuthorizeUrl(boolean remember) {
-        CodeGuardProperties.Auth.OAuth cfg = props.getAuth().getGithub();
+        Settings.OAuth cfg = settingsService.effectiveOAuth();
+        if (!notBlank(cfg.getGithubClientId()) || !notBlank(cfg.getGithubClientSecret())) {
+            throw new BusinessException(ErrorCodeEnum.OAUTH_FAILED,
+                    "GitHub OAuth 未配置，请在「设置 → 第三方登录」中填写 Client ID 与 Client Secret");
+        }
         return "https://github.com/login/oauth/authorize?" + query(Map.of(
-                "client_id", cfg.getClientId(),
-                "redirect_uri", cfg.getRedirectUri(),
+                "client_id", cfg.getGithubClientId(),
+                "redirect_uri", cfg.getGithubRedirectUri(),
                 "scope", "read:user repo",
                 "state", buildState(remember)
         ));
     }
 
     public String gitlabAuthorizeUrl(boolean remember) {
-        CodeGuardProperties.Auth.OAuth cfg = props.getAuth().getGitlab();
-        return cfg.getBaseUrl() + "/oauth/authorize?" + query(Map.of(
-                "client_id", cfg.getClientId(),
-                "redirect_uri", cfg.getRedirectUri(),
+        Settings.OAuth cfg = settingsService.effectiveOAuth();
+        if (!notBlank(cfg.getGitlabClientId()) || !notBlank(cfg.getGitlabClientSecret())) {
+            throw new BusinessException(ErrorCodeEnum.OAUTH_FAILED,
+                    "GitLab OAuth 未配置，请在「设置 → 第三方登录」中填写 Client ID 与 Client Secret");
+        }
+        return cfg.getGitlabBaseUrl() + "/oauth/authorize?" + query(Map.of(
+                "client_id", cfg.getGitlabClientId(),
+                "redirect_uri", cfg.getGitlabRedirectUri(),
                 "response_type", "code",
                 "scope", "read_api api",
                 "state", buildState(remember)
@@ -83,12 +92,12 @@ public class OAuthService {
 
     /** 用授权码换取用户信息并返回 OAuth 用户实体 */
     public User exchangeGithub(String code) {
-        CodeGuardProperties.Auth.OAuth cfg = props.getAuth().getGithub();
+        Settings.OAuth cfg = settingsService.effectiveOAuth();
         String token = postForm("https://github.com/login/oauth/access_token", Map.of(
-                "client_id", cfg.getClientId(),
-                "client_secret", cfg.getClientSecret(),
+                "client_id", cfg.getGithubClientId(),
+                "client_secret", cfg.getGithubClientSecret(),
                 "code", code,
-                "redirect_uri", cfg.getRedirectUri()
+                "redirect_uri", cfg.getGithubRedirectUri()
         ));
         JsonNode user = getJson("https://api.github.com/user", token);
         return User.builder()
@@ -103,15 +112,15 @@ public class OAuthService {
     }
 
     public User exchangeGitlab(String code) {
-        CodeGuardProperties.Auth.OAuth cfg = props.getAuth().getGitlab();
-        String token = postForm(cfg.getBaseUrl() + "/oauth/token", Map.of(
-                "client_id", cfg.getClientId(),
-                "client_secret", cfg.getClientSecret(),
+        Settings.OAuth cfg = settingsService.effectiveOAuth();
+        String token = postForm(cfg.getGitlabBaseUrl() + "/oauth/token", Map.of(
+                "client_id", cfg.getGitlabClientId(),
+                "client_secret", cfg.getGitlabClientSecret(),
                 "code", code,
                 "grant_type", "authorization_code",
-                "redirect_uri", cfg.getRedirectUri()
+                "redirect_uri", cfg.getGitlabRedirectUri()
         ));
-        JsonNode user = getJson(cfg.getBaseUrl() + "/api/v4/user", token);
+        JsonNode user = getJson(cfg.getGitlabBaseUrl() + "/api/v4/user", token);
         return User.builder()
                 .username(user.path("username").asText("gitlab_" + UUID.randomUUID().toString().substring(0, 8)))
                 .provider("GITLAB")
@@ -176,5 +185,9 @@ public class OAuthService {
 
     private String encode(String s) {
         return URLEncoder.encode(s == null ? "" : s, StandardCharsets.UTF_8);
+    }
+
+    private boolean notBlank(String s) {
+        return s != null && !s.isBlank();
     }
 }

@@ -88,6 +88,24 @@ public class SettingsController {
         private String model;
     }
 
+    @Data
+    public static class OAuthRequest {
+        @Size(max = 256)
+        private String githubClientId;
+        @Size(max = 2048)
+        private String githubClientSecret;
+        @Size(max = 512)
+        private String githubRedirectUri;
+        @Size(max = 256)
+        private String gitlabClientId;
+        @Size(max = 2048)
+        private String gitlabClientSecret;
+        @Size(max = 512)
+        private String gitlabRedirectUri;
+        @Size(max = 512)
+        private String gitlabBaseUrl;
+    }
+
     /** 测试 Agent 连接（使用请求体中的表单值，未填则用已保存配置；不保存） */
     @PostMapping("/agent/test")
     public Mono<Result<Map<String, Object>>> testAgent(@RequestBody(required = false) AgentRequest req) {
@@ -109,6 +127,7 @@ public class SettingsController {
     public static class SettingsRequest {
         private AgentRequest agent;
         private SmtpRequest smtp;
+        private OAuthRequest oauth;
     }
 
     /** 全局配置（脱敏视图） */
@@ -144,6 +163,18 @@ public class SettingsController {
                         .build();
                 settingsService.validateAgent(agent);
                 update.setAgent(agent);
+            }
+            if (req.getOauth() != null) {
+                Settings.OAuth oauth = Settings.OAuth.builder()
+                        .githubClientId(req.getOauth().getGithubClientId())
+                        .githubClientSecret(req.getOauth().getGithubClientSecret())
+                        .githubRedirectUri(req.getOauth().getGithubRedirectUri())
+                        .gitlabClientId(req.getOauth().getGitlabClientId())
+                        .gitlabClientSecret(req.getOauth().getGitlabClientSecret())
+                        .gitlabRedirectUri(req.getOauth().getGitlabRedirectUri())
+                        .gitlabBaseUrl(req.getOauth().getGitlabBaseUrl())
+                        .build();
+                update.setOauth(oauth);
             }
             settingsService.update(update);
             return settingsService.view();

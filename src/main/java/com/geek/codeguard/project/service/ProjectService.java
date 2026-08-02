@@ -187,7 +187,8 @@ public class ProjectService {
                 return dir;
             }
             String token = project.getToken();
-            return gitService.syncRepo(project.getId(), project.getRepoUrl(), project.getBranch(), token);
+            return gitService.syncRepo(project.getId(), project.getSource(), project.getRepoUrl(),
+                    project.getBranch(), token);
         }
     }
 
