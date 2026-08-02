@@ -36,6 +36,7 @@ export default function ScanDetailPage({ scanId }: { scanId: string }) {
   const [agentStatus, setAgentStatus] = useState<AgentReviewStatus['status']>('IDLE');
   const [agentThinking, setAgentThinking] = useState('');
   const agentAbort = useRef<AbortController | null>(null);
+  const sseAbort = useRef<AbortController | null>(null);
   const mounted = useRef(true);
 
   const loadStatic = useCallback(async () => {
@@ -62,6 +63,7 @@ export default function ScanDetailPage({ scanId }: { scanId: string }) {
     loadStatic();
     // SSE 实时流（fetch 方式，可携带 Authorization）
     const ctrl = new AbortController();
+    sseAbort.current = ctrl;
     const t = token();
     let buffer = '';
     async function stream() {
@@ -98,6 +100,7 @@ export default function ScanDetailPage({ scanId }: { scanId: string }) {
     stream();
     return () => {
       mounted.current = false;
+      sseAbort.current = null;
       ctrl.abort();
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -260,7 +263,11 @@ export default function ScanDetailPage({ scanId }: { scanId: string }) {
   const stop = async () => {
     try {
       await api.stopScan(scanId);
-      toast.success('已发送停止指令');
+      // 立即更新 UI：停止按钮消失、实时更新提示关闭、SSE 断开
+      setScan((prev) => (prev ? { ...prev, status: 'STOPPED', message: '扫描已手动停止' } : prev));
+      sseAbort.current?.abort();
+      setAgentStatus((s) => (s === 'RUNNING' ? 'CANCELLED' : s));
+      toast.success('已停止扫描');
     } catch (e: any) {
       toast.error(e?.message ?? '停止失败');
     }
