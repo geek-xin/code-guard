@@ -1,9 +1,10 @@
 import { useEffect, useState } from 'react';
-import { Sparkles, Save, Loader2, KeyRound, Github, Gitlab, ShieldCheck, RefreshCw, Mail, PlugZap } from 'lucide-react';
+import { Sparkles, Save, Loader2, KeyRound, Github, Gitlab, ShieldCheck, RefreshCw, Mail, PlugZap, MessageSquarePlus } from 'lucide-react';
 import { api, SettingsView } from '@/lib/api';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { Textarea } from '@/components/ui/textarea';
 import { Badge } from '@/components/ui/badge';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
@@ -17,6 +18,11 @@ export default function SettingsPage() {
   const [saving, setSaving] = useState(false);
   const [testing, setTesting] = useState(false);
   const [testResult, setTestResult] = useState<{ ok: boolean; latencyMs?: number; model?: string; reply?: string; error?: string } | null>(null);
+  // 问题反馈
+  const [fbTitle, setFbTitle] = useState('');
+  const [fbBody, setFbBody] = useState('');
+  const [fbSubmitting, setFbSubmitting] = useState(false);
+  const [fbResult, setFbResult] = useState<{ htmlUrl: string; number: number } | null>(null);
   // SMTP
   const [smtpEnabled, setSmtpEnabled] = useState(false);
   const [smtpHost, setSmtpHost] = useState('');
@@ -64,6 +70,23 @@ export default function SettingsPage() {
       setTestResult({ ok: false, error: e?.message ?? '测试失败' });
     } finally {
       setTesting(false);
+    }
+  };
+
+  const submitFeedback = async () => {
+    if (!fbTitle.trim() || !fbBody.trim()) {
+      toast.error('请填写标题与内容');
+      return;
+    }
+    setFbSubmitting(true);
+    try {
+      const res = await api.feedback(fbTitle.trim(), fbBody.trim());
+      setFbResult({ htmlUrl: res.htmlUrl, number: res.number });
+      toast.success(`已提交 GitHub Issue #${res.number}`);
+    } catch (e: any) {
+      toast.error(e?.message ?? '提交失败');
+    } finally {
+      setFbSubmitting(false);
     }
   };
 
@@ -292,6 +315,53 @@ export default function SettingsPage() {
               <RefreshCw className="h-4 w-4" /> 刷新
             </Button>
           </div>
+        </CardContent>
+      </Card>
+
+      {/* 问题反馈 */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <MessageSquarePlus className="h-4 w-4" /> 问题反馈（提交 GitHub）
+          </CardTitle>
+          <CardDescription>
+            发现平台自身的问题或改进建议？填写后一键提交 Issue 到 CodeGuard 仓库
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          {fbResult ? (
+            <div className="space-y-3">
+              <div className="rounded-md border-chunky border-ink bg-secondary/30 p-3 text-sm">
+                ✅ 已提交 Issue <b>#{fbResult.number}</b>
+              </div>
+              <a href={fbResult.htmlUrl} target="_blank" rel="noreferrer"
+                className="block rounded-md border-chunky border-ink bg-white p-3 text-center text-sm font-black text-primary shadow-chunky-sm hover:bg-paper-alt">
+                打开 Issue 查看
+              </a>
+              <Button variant="ghost" size="sm" onClick={() => { setFbResult(null); setFbTitle(''); setFbBody(''); }}>
+                继续反馈
+              </Button>
+            </div>
+          ) : (
+            <>
+              <div>
+                <label className="mb-1 block text-xs font-bold text-ink-muted">标题</label>
+                <Input value={fbTitle} onChange={(e) => setFbTitle(e.target.value)} placeholder="问题简述，如：扫描记录页打开速度慢" />
+              </div>
+              <div>
+                <label className="mb-1 block text-xs font-bold text-ink-muted">内容</label>
+                <Textarea value={fbBody} onChange={(e) => setFbBody(e.target.value)} rows={5}
+                  placeholder="详细描述问题现象、复现步骤、期望行为（支持 Markdown）" />
+              </div>
+              <div className="flex items-center gap-2">
+                <Button onClick={submitFeedback} disabled={fbSubmitting}>
+                  {fbSubmitting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Github className="h-4 w-4" />}
+                  {fbSubmitting ? '提交中...' : '提交 GitHub Issue'}
+                </Button>
+                <span className="text-[11px] font-semibold text-ink-subtle">使用当前 GitHub 登录账号创建</span>
+              </div>
+            </>
+          )}
         </CardContent>
       </Card>
 

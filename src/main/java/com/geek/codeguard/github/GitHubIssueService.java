@@ -42,23 +42,37 @@ public class GitHubIssueService {
         if (!"GITHUB".equals(project.getSource())) {
             throw new BusinessException(ErrorCodeEnum.BAD_REQUEST, "仅 GitHub 来源的项目支持提交 Issue");
         }
-        if (token == null || token.isBlank()) {
-            throw new BusinessException(ErrorCodeEnum.AGENT_FAILED,
-                    "缺少 GitHub 访问令牌：请在项目配置中填写 Token，或使用 GitHub 账号登录");
-        }
         String owner = extractOwner(project.getRepoUrl());
         String repo = extractRepo(project.getRepoUrl());
         if (owner == null || repo == null) {
             throw new BusinessException(ErrorCodeEnum.BAD_REQUEST, "无法从仓库地址解析 owner/repo: " + project.getRepoUrl());
         }
+        Map<String, Object> summary = scan.getSummary() == null ? Map.of() : scan.getSummary();
+        String title = "[code-guard] 安全扫描报告：" + scan.getProjectName()
+                + "（共 " + summary.get("total") + " 个问题）";
+        String body = reportService.buildMarkdown(scan, findings.size() > 60 ? findings.subList(0, 60) : findings);
+        if (body.length() > MAX_BODY) {
+            body = body.substring(0, MAX_BODY) + "\n\n...（内容已截断，请查看平台完整报告）";
+        }
+        return createIssue(owner, repo, title, body, token);
+    }
+
+    /** 通用：向任意 GitHub 仓库创建 Issue */
+    public Map<String, Object> createIssue(String repoUrl, String title, String body, String token) {
+        String owner = extractOwner(repoUrl);
+        String repo = extractRepo(repoUrl);
+        if (owner == null || repo == null) {
+            throw new BusinessException(ErrorCodeEnum.BAD_REQUEST, "无法从仓库地址解析 owner/repo: " + repoUrl);
+        }
+        return createIssue(owner, repo, title, body, token);
+    }
+
+    private Map<String, Object> createIssue(String owner, String repo, String title, String body, String token) {
+        if (token == null || token.isBlank()) {
+            throw new BusinessException(ErrorCodeEnum.AGENT_FAILED,
+                    "缺少 GitHub 访问令牌：请在项目配置中填写 Token，或使用 GitHub 账号登录");
+        }
         try {
-            Map<String, Object> summary = scan.getSummary() == null ? Map.of() : scan.getSummary();
-            String title = "[code-guard] 安全扫描报告：" + scan.getProjectName()
-                    + "（共 " + summary.get("total") + " 个问题）";
-            String body = reportService.buildMarkdown(scan, findings.size() > 60 ? findings.subList(0, 60) : findings);
-            if (body.length() > MAX_BODY) {
-                body = body.substring(0, MAX_BODY) + "\n\n...（内容已截断，请查看平台完整报告）";
-            }
             Map<String, Object> payload = new LinkedHashMap<>();
             payload.put("title", title);
             payload.put("body", body);

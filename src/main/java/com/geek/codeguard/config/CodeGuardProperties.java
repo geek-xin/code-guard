@@ -22,6 +22,8 @@ public class CodeGuardProperties {
     private int scaOsvConcurrency = 6;
     private int maxFileKb = 2048;
     private List<String> ignorePatterns = new ArrayList<>();
+    /** 平台自身仓库（用于问题反馈） */
+    private String githubRepoUrl = "https://github.com/geek-xin/code-guard";
     private Auth auth = new Auth();
     private Sca sca = new Sca();
     private Agent agent = new Agent();

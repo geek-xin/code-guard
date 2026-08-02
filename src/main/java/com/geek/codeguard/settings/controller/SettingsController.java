@@ -21,9 +21,44 @@ import java.util.Map;
 public class SettingsController {
 
     private final SettingsService settingsService;
+    private final com.geek.codeguard.github.GitHubIssueService githubIssueService;
+    private final com.geek.codeguard.auth.service.UserStore userStore;
+    private final com.geek.codeguard.config.CodeGuardProperties props;
 
-    public SettingsController(SettingsService settingsService) {
+    public SettingsController(SettingsService settingsService,
+                              com.geek.codeguard.github.GitHubIssueService githubIssueService,
+                              com.geek.codeguard.auth.service.UserStore userStore,
+                              com.geek.codeguard.config.CodeGuardProperties props) {
         this.settingsService = settingsService;
+        this.githubIssueService = githubIssueService;
+        this.userStore = userStore;
+        this.props = props;
+    }
+
+    /** 平台问题反馈：向平台自身仓库创建 GitHub Issue */
+    @PostMapping("/feedback")
+    public Mono<Result<Map<String, Object>>> feedback(@Valid @RequestBody FeedbackRequest req,
+                                                      org.springframework.web.server.ServerWebExchange exchange) {
+        return Mono.fromCallable(() -> {
+            com.geek.codeguard.auth.model.User user =
+                    (com.geek.codeguard.auth.model.User) exchange.getAttribute(
+                            com.geek.codeguard.common.constants.CommonConstants.CURRENT_USER_ATTR);
+            String token = user == null ? null : user.getAccessToken();
+            String title = "[code-guard 反馈] " + req.getTitle();
+            Map<String, Object> result = githubIssueService.createIssue(props.getGithubRepoUrl(), title, req.getBody(), token);
+            result.put("repoUrl", props.getGithubRepoUrl());
+            return result;
+        }).map(Result::success);
+    }
+
+    @Data
+    public static class FeedbackRequest {
+        @jakarta.validation.constraints.NotBlank(message = "标题不能为空")
+        @Size(max = 200)
+        private String title;
+        @jakarta.validation.constraints.NotBlank(message = "内容不能为空")
+        @Size(max = 60000)
+        private String body;
     }
 
     @Data

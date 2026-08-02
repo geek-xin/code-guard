@@ -106,6 +106,9 @@ export const api = {
   testAgent: (data?: SettingsPayload['agent']) =>
     request<{ ok: boolean; latencyMs?: number; model?: string; reply?: string; error?: string }>(
       '/settings/agent/test', { method: 'POST', body: JSON.stringify(data ?? {}) }),
+  feedback: (title: string, body: string) =>
+    request<{ number: number; htmlUrl: string; title: string; state: string; repoUrl: string }>(
+      '/settings/feedback', { method: 'POST', body: JSON.stringify({ title, body }) }),
 };
 
 // ============ 类型 ============
