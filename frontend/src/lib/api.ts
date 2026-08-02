@@ -257,6 +257,7 @@ export interface SettingsView {
     ssl: boolean;
     passwordConfigured: boolean;
     ready: boolean;
+    defaultRecipients: string[];
   };
   agent: {
     enabled: boolean;
@@ -287,6 +288,7 @@ export interface SettingsPayload {
     password?: string;
     from?: string;
     ssl?: boolean;
+    defaultRecipients?: string[];
   };
 }
 

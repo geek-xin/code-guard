@@ -39,6 +39,7 @@ public class SettingsController {
         @Size(max = 256)
         private String from;
         private Boolean ssl;
+        private java.util.List<String> defaultRecipients;
     }
 
     @Data
@@ -95,6 +96,7 @@ public class SettingsController {
                         .password(req.getSmtp().getPassword())
                         .from(req.getSmtp().getFrom())
                         .ssl(req.getSmtp().getSsl())
+                        .defaultRecipients(req.getSmtp().getDefaultRecipients())
                         .build();
                 update.setSmtp(smtp);
             }

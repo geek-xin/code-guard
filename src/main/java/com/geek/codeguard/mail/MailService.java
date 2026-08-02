@@ -42,10 +42,17 @@ public class MailService {
         return settingsService.smtpReady();
     }
 
-    /** 扫描完成后向项目配置的所有邮箱推送报告；失败不影响扫描主流程 */
+    /** 扫描完成后推送报告：项目邮箱优先，未填则使用 SMTP 默认收件地址 */
     public void sendScanReport(Project project, ScanRecord scan, List<ScanFinding> findings) {
-        List<String> emails = project.getEmails();
-        if (!project.isEmailNotify() || emails == null || emails.isEmpty()) {
+        if (!project.isEmailNotify()) {
+            return;
+        }
+        Settings.Smtp smtp = settingsService.smtp();
+        List<String> emails = project.getEmails() != null && !project.getEmails().isEmpty()
+                ? project.getEmails()
+                : smtp != null && smtp.getDefaultRecipients() != null ? smtp.getDefaultRecipients() : List.of();
+        if (emails.isEmpty()) {
+            log.warn("邮件通知未发送：项目未配置邮箱且 SMTP 未设置默认收件邮箱");
             return;
         }
         if (!isReady()) {
@@ -55,7 +62,6 @@ public class MailService {
         try {
             String html = reportService.buildHtml(scan, findings);
             byte[] pdf = pdfBuilder.build(scan, findings);
-            Settings.Smtp smtp = settingsService.smtp();
             String from = (smtp.getFrom() == null || smtp.getFrom().isBlank()) ? smtp.getUsername() : smtp.getFrom();
             String subject = buildSubject(scan);
 

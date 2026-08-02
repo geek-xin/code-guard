@@ -45,6 +45,10 @@ public class SettingsService {
                     .from(notBlank(update.getSmtp().getFrom()) ? update.getSmtp().getFrom().trim() : cur.getFrom())
                     .ssl(update.getSmtp().getSsl() != null ? update.getSmtp().getSsl() : cur.getSsl())
                     .password(cur.getPassword())
+                    .defaultRecipients(update.getSmtp().getDefaultRecipients() != null
+                            ? update.getSmtp().getDefaultRecipients().stream()
+                            .map(String::trim).filter(s -> !s.isBlank()).distinct().toList()
+                            : cur.getDefaultRecipients())
                     .build();
             String pwd = update.getSmtp().getPassword();
             if (notBlank(pwd) && !"******".equals(pwd.trim())) {
@@ -123,6 +127,7 @@ public class SettingsService {
         smtpView.put("from", smtp == null ? "" : smtp.getFrom());
         smtpView.put("ssl", smtp != null && smtp.getSsl() != null ? smtp.getSsl() : true);
         smtpView.put("passwordConfigured", smtp != null && notBlank(smtp.getPassword()));
+        smtpView.put("defaultRecipients", smtp != null && smtp.getDefaultRecipients() != null ? smtp.getDefaultRecipients() : java.util.List.of());
         smtpView.put("ready", smtpReady());
 
         Map<String, Object> oauth = new LinkedHashMap<>();

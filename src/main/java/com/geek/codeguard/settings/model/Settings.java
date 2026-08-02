@@ -28,6 +28,8 @@ public class Settings {
         private String password;
         private String from;
         private Boolean ssl;
+        /** 默认收件邮箱（项目未单独配置时使用） */
+        private java.util.List<String> defaultRecipients;
     }
 
     @Data

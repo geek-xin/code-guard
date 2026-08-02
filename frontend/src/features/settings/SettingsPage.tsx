@@ -25,6 +25,7 @@ export default function SettingsPage() {
   const [smtpPassword, setSmtpPassword] = useState('');
   const [smtpFrom, setSmtpFrom] = useState('');
   const [smtpSsl, setSmtpSsl] = useState(true);
+  const [smtpRecipients, setSmtpRecipients] = useState('');
 
   const load = () => {
     api.getSettings().then((s) => {
@@ -40,6 +41,7 @@ export default function SettingsPage() {
       setSmtpPassword('');
       setSmtpFrom(s.smtp.from ?? '');
       setSmtpSsl(s.smtp.ssl);
+      setSmtpRecipients((s.smtp.defaultRecipients ?? []).join(', '));
     }).catch(() => {});
   };
 
@@ -83,6 +85,7 @@ export default function SettingsPage() {
           password: smtpPassword.trim() || undefined,
           from: smtpFrom.trim() || undefined,
           ssl: smtpSsl,
+          defaultRecipients: smtpRecipients ? smtpRecipients.split(/[,，;\n]/).map((e) => e.trim()).filter(Boolean) : undefined,
         },
       };
       const updated = await api.updateSettings(payload);
@@ -255,6 +258,14 @@ export default function SettingsPage() {
             <div>
               <label className="mb-1 block text-xs font-bold text-ink-muted">发件人显示地址（可选）</label>
               <Input value={smtpFrom} onChange={(e) => setSmtpFrom(e.target.value)} placeholder="留空使用发件邮箱" />
+            </div>
+            <div className="sm:col-span-2">
+              <label className="mb-1 block text-xs font-bold text-ink-muted">默认收件邮箱</label>
+              <Input value={smtpRecipients} onChange={(e) => setSmtpRecipients(e.target.value)}
+                placeholder="多个用逗号分隔，如 a@example.com, b@example.com" />
+              <p className="mt-1 text-[11px] font-semibold text-ink-subtle">
+                项目未单独填写收件邮箱时，扫描报告发送到这里的地址（项目填了邮箱则优先发项目邮箱）
+              </p>
             </div>
             <div className="flex items-end pb-1">
               <button
