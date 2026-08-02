@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Plus, RefreshCw, ScanSearch, Pencil, Trash2, FolderGit2, Github, Gitlab, FolderOpen, Clock, Mail, Search, Tags } from 'lucide-react';
 import GroupManageDialog from '@/features/groups/GroupManageDialog';
-import { api, Project } from '@/lib/api';
+import { api, Project, ProjectGroup } from '@/lib/api';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -22,6 +22,7 @@ const SOURCE_META: Record<string, { label: string; icon: React.ReactNode }> = {
 
 export default function ProjectsPage() {
   const [projects, setProjects] = useState<Project[]>([]);
+  const [groups, setGroups] = useState<ProjectGroup[]>([]);
   const [loading, setLoading] = useState(true);
   const [formOpen, setFormOpen] = useState(false);
   const [editing, setEditing] = useState<Project | null>(null);
@@ -31,7 +32,13 @@ export default function ProjectsPage() {
   const [groupManageOpen, setGroupManageOpen] = useState(false);
 
   const load = useCallback(() => {
-    api.listProjects().then(setProjects).catch((e) => toast.error(e.message)).finally(() => setLoading(false));
+    Promise.all([api.listProjects(), api.listGroups()])
+      .then(([p, g]) => {
+        setProjects(p);
+        setGroups(g);
+      })
+      .catch((e) => toast.error(e.message))
+      .finally(() => setLoading(false));
   }, []);
 
   useEffect(() => {
@@ -167,6 +174,7 @@ export default function ProjectsPage() {
                   <ProjectCard
                     key={p.id}
                     project={p}
+                    groupColor={groupColor(p.group, groups)}
                     busy={busyId === p.id}
                     onScan={() => scan(p)}
                     onSync={() => sync(p)}
@@ -206,6 +214,22 @@ export default function ProjectsPage() {
   );
 }
 
+function groupColor(group: string | undefined, groups: ProjectGroup[]): string {
+  if (!group) return '#B9B2A9';
+  const g = groups.find((x) => x.name === group);
+  return g?.color ?? '#B9B2A9';
+}
+
+/** 间隔格式化：>=60 分钟显示为小时，否则显示分钟 */
+function formatInterval(minutes: number): string {
+  const m = Math.max(1, Math.round(minutes || 0));
+  if (m >= 60) {
+    const h = m / 60;
+    return (Number.isInteger(h) ? h : h.toFixed(1)) + ' 小时';
+  }
+  return m + ' 分钟';
+}
+
 const TAG_COLORS = ['#CB3837', '#FF8A00', '#3775A9', '#00ADD8', '#D63384', '#7C3AED', '#18A96B', '#E9573F'];
 
 function tagColor(tag: string): string {
@@ -214,8 +238,8 @@ function tagColor(tag: string): string {
   return TAG_COLORS[h % TAG_COLORS.length];
 }
 
-function ProjectCard({ project, busy, onScan, onSync, onEdit, onDelete }: {
-  project: Project; busy: boolean; onScan: () => void; onSync: () => void; onEdit: () => void; onDelete: () => void;
+function ProjectCard({ project, groupColor, busy, onScan, onSync, onEdit, onDelete }: {
+  project: Project; groupColor?: string; busy: boolean; onScan: () => void; onSync: () => void; onEdit: () => void; onDelete: () => void;
 }) {
   const stats = project.lastScanStats ?? {};
   const src = SOURCE_META[project.source] ?? SOURCE_META.LOCAL;
@@ -236,15 +260,40 @@ function ProjectCard({ project, busy, onScan, onSync, onEdit, onDelete }: {
       <CardContent className="flex flex-1 flex-col gap-3 p-4">
         <div className="flex items-start justify-between gap-2">
           <div className="min-w-0">
-            <div className="flex items-center gap-2">
-              <span className="text-primary">{src.icon}</span>
+            <div className="flex flex-wrap items-center gap-1.5">
+              <span className="shrink-0 text-primary">{src.icon}</span>
               <span className="truncate text-base font-black text-ink">{project.alias || project.name}</span>
+              {project.group && (
+                <span
+                  className="inline-flex items-center gap-1 rounded-full border-chunky border-ink px-2 py-0.5 text-[11px] font-black text-white"
+                  style={{ background: groupColor ?? '#B9B2A9' }}
+                >
+                  {project.group}
+                </span>
+              )}
+              <Badge variant="outline">{src.label}</Badge>
             </div>
-            <p className="mt-0.5 line-clamp-1 text-xs font-semibold text-ink-muted">
-              {project.alias ? `${project.name}${project.description ? ' · ' + project.description : ''}` : project.description}
+            {/* 标签展示 */}
+            {project.tags && project.tags.length > 0 && (
+              <div className="mt-1.5 flex flex-wrap gap-1">
+                {project.tags.map((t) => (
+                  <span
+                    key={t}
+                    className="inline-flex items-center rounded-full border-chunky border-ink px-2 py-0.5 text-[11px] font-black text-white"
+                    style={{ background: tagColor(t) }}
+                  >
+                    {t}
+                  </span>
+                ))}
+              </div>
+            )}
+            <p className="mt-1 line-clamp-1 break-all text-xs font-semibold text-ink-muted">
+              {project.alias && project.alias !== project.name && <span>名称：{project.name}</span>}
+              {project.description && (
+                <span>{project.alias && project.alias !== project.name ? ' · ' : ''}{project.description}</span>
+              )}
             </p>
           </div>
-          <Badge variant="outline">{src.label}</Badge>
         </div>
 
         <div className="flex flex-wrap items-center gap-1.5">
@@ -253,10 +302,10 @@ function ProjectCard({ project, busy, onScan, onSync, onEdit, onDelete }: {
             <Badge variant="success">已扫描</Badge>
           ) : project.lastScanStatus === 'FAILED' ? <Badge variant="danger">扫描失败</Badge> : null}
           {project.autoScanEnabled && (
-            <Badge variant="outline"><ScanSearch className="h-3 w-3" /> {(project.scanIntervalMinutes ?? 180) / 60} 小时自动扫描</Badge>
+            <Badge variant="outline"><ScanSearch className="h-3 w-3" /> {formatInterval(project.scanIntervalMinutes ?? 180)}自动扫描</Badge>
           )}
           {project.autoSyncEnabled && (
-            <Badge variant="outline"><RefreshCw className="h-3 w-3" /> {project.syncIntervalMinutes ?? 60} 分钟同步</Badge>
+            <Badge variant="outline"><RefreshCw className="h-3 w-3" /> {formatInterval(project.syncIntervalMinutes ?? 60)}同步</Badge>
           )}
           {project.scheduleEnabled && (
             <Badge variant="outline"><Clock className="h-3 w-3" /> {project.scheduleCron}</Badge>
@@ -264,15 +313,6 @@ function ProjectCard({ project, busy, onScan, onSync, onEdit, onDelete }: {
           {project.emailNotify && (
             <Badge variant="outline"><Mail className="h-3 w-3" /> 邮件报告</Badge>
           )}
-          {project.tags?.map((t) => (
-            <span
-              key={t}
-              className="inline-flex items-center rounded-full border-chunky border-ink px-2 py-0.5 text-[11px] font-black text-white"
-              style={{ background: tagColor(t) }}
-            >
-              {t}
-            </span>
-          ))}
         </div>
 
         {/* 最近扫描统计 */}
