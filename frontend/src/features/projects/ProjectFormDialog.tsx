@@ -7,6 +7,8 @@ import { Project, api } from '@/lib/api';
 import { toast } from 'sonner';
 import { Loader2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import DirectoryPicker from '@/components/directory/DirectoryPicker';
+import { FolderOpen } from 'lucide-react';
 
 const SOURCES = [
   { key: 'GITHUB', label: 'GitHub 仓库', desc: '通过 HTTPS 克隆' },
@@ -43,6 +45,7 @@ export default function ProjectFormDialog({
   const [emails, setEmails] = useState('');
   const [enabled, setEnabled] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [pickerOpen, setPickerOpen] = useState(false);
 
   /** 从本地目录或仓库地址自动识别项目名（如 web-sim、org/repo.git -> repo） */
   const detectName = (value: string): string | null => {
@@ -185,13 +188,18 @@ export default function ProjectFormDialog({
             {source === 'LOCAL' && (
               <div className="sm:col-span-2">
                 <label className="mb-1 block text-xs font-bold text-ink-muted">本地源码目录 *</label>
-                <Input value={localPath} onChange={(e) => {
-                  const v = e.target.value;
-                  setLocalPath(v);
-                  const n = detectName(v);
-                  if (n) setName(n);
-                }} required={source === 'LOCAL'}
-                  placeholder="/Users/you/projects/my-app" />
+                <div className="flex items-center gap-2">
+                  <Input value={localPath} onChange={(e) => {
+                    const v = e.target.value;
+                    setLocalPath(v);
+                    const n = detectName(v);
+                    if (n) setName(n);
+                  }} required={source === 'LOCAL'}
+                    placeholder="/Users/you/projects/my-app" />
+                  <Button type="button" variant="outline" onClick={() => setPickerOpen(true)} title="选择目录">
+                    <FolderOpen className="h-4 w-4" /> 浏览
+                  </Button>
+                </div>
               </div>
             )}
           </div>
@@ -290,6 +298,17 @@ export default function ProjectFormDialog({
               </div>
             )}
           </div>
+
+          <DirectoryPicker
+            open={pickerOpen}
+            onOpenChange={setPickerOpen}
+            initialPath={localPath}
+            onSelect={(p) => {
+              setLocalPath(p);
+              const n = detectName(p);
+              if (n) setName(n);
+            }}
+          />
 
           <DialogFooter>
             <Button type="button" variant="ghost" onClick={() => onOpenChange(false)}>取消</Button>

@@ -87,6 +87,9 @@ export const api = {
   vulndbStatus: () => request<VulnDbStatus>('/vulndb/status'),
   vulndbUpdate: () => request<{ started: boolean; message: string }>('/vulndb/update', { method: 'POST' }),
 
+  // directory browser
+  browseDirectory: (path = '') => request<BrowseResult>(`/projects/browse?path=${encodeURIComponent(path)}`),
+
   // settings
   getSettings: () => request<SettingsView>('/settings'),
   updateSettings: (data: SettingsPayload) => request<SettingsView>('/settings', { method: 'PUT', body: JSON.stringify(data) }),
@@ -205,6 +208,13 @@ export interface TrendPoint {
   high: number;
   medium: number;
   low: number;
+}
+
+export interface BrowseResult {
+  current: string;
+  parent?: string;
+  name: string;
+  dirs: { name: string; path: string }[];
 }
 
 export interface SettingsView {
