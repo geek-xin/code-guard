@@ -66,6 +66,10 @@ export const api = {
   updateProject: (id: string, data: Partial<Project>) => request<Project>(`/projects/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
   deleteProject: (id: string) => request<void>(`/projects/${id}`, { method: 'DELETE' }),
   syncProject: (id: string) => request<{ status: string; message: string }>(`/projects/${id}/sync`, { method: 'POST' }),
+  exportProjects: () => request<ProjectExport>(`/projects/export`),
+  importProjects: (payload: { version?: number; projects: Partial<Project>[] }) =>
+    request<{ imported: number; skipped: number; failed: number; errors: { name: string; message: string }[] }>(
+      '/projects/import', { method: 'POST', body: JSON.stringify(payload) }),
   listBranches: (source: string, repoUrl: string, token?: string) =>
     request<BranchList>('/projects/branches', {
       method: 'POST',
@@ -248,6 +252,13 @@ export interface ProjectGroup {
 export interface BranchList {
   defaultBranch: string;
   branches: string[];
+}
+
+export interface ProjectExport {
+  version: number;
+  exportedAt: string;
+  count: number;
+  projects: Partial<Project>[];
 }
 
 export interface BrowseResult {

@@ -70,6 +70,7 @@ public class PdfReportBuilder {
             Font headFont = font(11, Font.BOLD);
             Font bodyFont = font(9, Font.NORMAL);
             Font smallFont = font(8, Font.NORMAL);
+            Font tinyFont = font(7, Font.NORMAL);
 
             // 标题
             Paragraph title = new Paragraph("CodeGuard 代码安全扫描报告", titleFont);
@@ -119,7 +120,7 @@ public class PdfReportBuilder {
             List<ScanFinding> sorted = findings.stream()
                     .sorted((a, b) -> Integer.compare(sevRank(b.getSeverity()), sevRank(a.getSeverity())))
                     .toList();
-            PdfPTable table = new PdfPTable(new float[]{1.1f, 3.2f, 1.2f, 2.6f, 1.5f});
+            PdfPTable table = new PdfPTable(new float[]{0.9f, 3.3f, 1.1f, 2.1f, 1.6f});
             table.setWidthPercentage(100);
             // 允许超长行跨页拆分，避免整行放不下时产生大量空白页
             table.setSplitLate(false);
@@ -127,10 +128,13 @@ public class PdfReportBuilder {
             for (String h : headers) table.addCell(cell(h, headFont, true));
             for (ScanFinding f : sorted) {
                 table.addCell(cell(sevLabel(f.getSeverity()), bodyFont, false));
-                table.addCell(cell(trimText(safe(f.getTitle()), 160), bodyFont, false));
+                table.addCell(cell(trimText(MarkdownReportRenderer.inlineClean(f.getTitle()), 200), bodyFont, false));
                 table.addCell(cell(engineLabel(f.getEngine()), bodyFont, false));
-                table.addCell(cell(trimText(safe(f.getFile()), 80) + (f.getLine() != null ? " : " + f.getLine() : ""), bodyFont, false));
-                table.addCell(cell(trimText(safe(f.getVulnId()), 60), bodyFont, false));
+                table.addCell(cell(trimText(ReportPaths.shortPath(f.getFile()), 60)
+                        + (f.getLine() != null ? " : " + f.getLine() : ""), bodyFont, false));
+                PdfPCell idCell = cell(trimText(safe(f.getVulnId()), 60), tinyFont, false);
+                idCell.setNoWrap(true);
+                table.addCell(idCell);
             }
             doc.add(table);
             doc.add(new Paragraph(" ", bodyFont));
@@ -138,11 +142,7 @@ public class PdfReportBuilder {
             // AI 审查意见
             if (scan.getAgentReview() != null && !scan.getAgentReview().isBlank()) {
                 doc.add(new Paragraph("四、AI 审查意见", headFont));
-                for (String line : scan.getAgentReview().split("\n")) {
-                    Paragraph p = new Paragraph(trimText(safe(line), 600), bodyFont);
-                    p.setSpacingAfter(4);
-                    doc.add(p);
-                }
+                renderMarkdown(doc, scan.getAgentReview(), bodyFont, headFont, smallFont);
             }
 
             doc.add(new Paragraph("本报告由 CodeGuard 代码安全分析平台自动生成 · " + fmt(Instant.now().toString()), smallFont));
@@ -183,6 +183,77 @@ public class PdfReportBuilder {
         } catch (Exception e) {
             throw new IllegalStateException("无可用字体", e);
         }
+    }
+
+    /** 渲染 AI 审查的 Markdown 块到 PDF 文档 */
+    private void renderMarkdown(Document doc, String markdown,
+                                Font body, Font head, Font small) {
+        List<MarkdownReportRenderer.Block> blocks = MarkdownReportRenderer.parse(markdown);
+        for (MarkdownReportRenderer.Block b : blocks) {
+            switch (b.type) {
+                case H1, H2, H3, H4 -> {
+                    float size = switch (b.type) {
+                        case H1 -> 15f;
+                        case H2 -> 13f;
+                        case H3 -> 11f;
+                        default -> 10f;
+                    };
+                    Paragraph p = new Paragraph(safe(b.text), font(size, Font.BOLD));
+                    p.setSpacingBefore(8);
+                    p.setSpacingAfter(4);
+                    doc.add(p);
+                }
+                case PARAGRAPH, QUOTE -> {
+                    Paragraph p = new Paragraph(safe(b.text), body);
+                    p.setSpacingAfter(5);
+                    if (b.type == MarkdownReportRenderer.Type.QUOTE) {
+                        p.setIndentationLeft(12);
+                    }
+                    doc.add(p);
+                }
+                case LIST -> {
+                    Paragraph p = new Paragraph("•  " + safe(b.text), body);
+                    p.setIndentationLeft(10);
+                    p.setSpacingAfter(3);
+                    doc.add(p);
+                }
+                case CODE -> {
+                    Paragraph p = new Paragraph(safe(b.text), font(7.5f, Font.NORMAL));
+                    p.setLeading(10);
+                    p.setSpacingBefore(4);
+                    p.setSpacingAfter(6);
+                    doc.add(p);
+                }
+                case TABLE -> {
+                    if (b.table != null && !b.table.isEmpty()) {
+                        doc.add(renderTable(b.table, body, head));
+                        doc.add(new Paragraph(" ", body));
+                    }
+                }
+                default -> {
+                    // BLANK 忽略
+                }
+            }
+        }
+    }
+
+    private PdfPTable renderTable(List<List<String>> rows, Font body, Font head) {
+        int cols = 1;
+        for (List<String> r : rows) {
+            cols = Math.max(cols, r.size());
+        }
+        PdfPTable t = new PdfPTable(cols);
+        t.setWidthPercentage(100);
+        t.setSplitLate(false);
+        for (int i = 0; i < rows.size(); i++) {
+            List<String> row = rows.get(i);
+            boolean isHeader = i == 0;
+            for (int c = 0; c < cols; c++) {
+                String txt = c < row.size() ? row.get(c) : "";
+                t.addCell(cell(trimText(txt, 400), isHeader ? head : body, isHeader));
+            }
+        }
+        return t;
     }
 
     private Font font(float size, int style) {

@@ -106,6 +106,25 @@ public class ProjectController {
                 .map(ProjectController::sanitize).toList()));
     }
 
+    /** 导出全部工程配置（脱敏 JSON，不含令牌明文），可再导入恢复 */
+    @GetMapping("/export")
+    public Mono<Result<Map<String, Object>>> exportConfig() {
+        return Mono.just(Result.success(projectService.exportConfig()));
+    }
+
+    @Data
+    public static class ImportRequest {
+        private Integer version;
+        private java.util.List<Project> projects;
+    }
+
+    /** 导入工程配置（批量创建，同名跳过，单条失败不影响其余） */
+    @PostMapping("/import")
+    public Mono<Result<Map<String, Object>>> importConfig(@RequestBody ImportRequest req) {
+        return Mono.fromCallable(() -> Result.success(
+                projectService.importConfig(req == null ? null : req.getProjects())));
+    }
+
     @GetMapping("/{id}")
     public Mono<Result<Project>> get(@PathVariable String id) {
         return Mono.just(Result.success(sanitize(projectService.get(id))));

@@ -14,6 +14,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.Instant;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 
 @Service
@@ -204,6 +205,124 @@ public class ProjectService {
         p.setSyncMessage(message);
         p.setUpdatedAt(Instant.now());
         save(p);
+    }
+
+    // ============ 工程配置导入 / 导出 ============
+
+    /** 导出全部工程配置（脱敏：令牌不导出明文，仅保留是否已配置标记） */
+    public Map<String, Object> exportConfig() {
+        List<Project> projects = list().stream()
+                .map(p -> {
+                    Project copy = cloneProject(p);
+                    copy.setToken(null);
+                    copy.setTokenConfigured(false);
+                    // 运行态字段不参与配置迁移
+                    copy.setLastScanId(null);
+                    copy.setLastScanAt(null);
+                    copy.setLastScanStatus(null);
+                    copy.setLastScanStats(null);
+                    copy.setSyncStatus(null);
+                    copy.setSyncMessage(null);
+                    copy.setId(null);
+                    copy.setCreatedAt(null);
+                    copy.setUpdatedAt(null);
+                    return copy;
+                })
+                .toList();
+        Map<String, Object> payload = new java.util.LinkedHashMap<>();
+        payload.put("version", 1);
+        payload.put("exportedAt", Instant.now().toString());
+        payload.put("count", projects.size());
+        payload.put("projects", projects);
+        return payload;
+    }
+
+    /**
+     * 导入工程配置：批量创建项目。
+     * 同名项目跳过；每项独立校验，单条失败不影响其余导入。
+     *
+     * @return { imported, skipped, failed, errors: [{name, message}] }
+     */
+    public Map<String, Object> importConfig(List<Project> incoming) {
+        Map<String, Object> result = new java.util.LinkedHashMap<>();
+        List<Map<String, String>> errors = new java.util.ArrayList<>();
+        int imported = 0, skipped = 0, failed = 0;
+        if (incoming != null) {
+            for (Project p : incoming) {
+                String name = p.getName() == null ? "" : p.getName().trim();
+                try {
+                    if (name.isBlank()) {
+                        failed++;
+                        errors.add(Map.of("name", "(未命名)", "message", "项目名称不能为空"));
+                        continue;
+                    }
+                    boolean exists = list().stream()
+                            .anyMatch(e -> e.getName().equalsIgnoreCase(name));
+                    if (exists) {
+                        skipped++;
+                        errors.add(Map.of("name", name, "message", "已存在同名项目，已跳过"));
+                        continue;
+                    }
+                    Project fresh = Project.builder()
+                            .name(name)
+                            .alias(p.getAlias())
+                            .tags(p.getTags())
+                            .group(p.getGroup())
+                            .description(p.getDescription())
+                            .source(p.getSource() == null ? Project.SOURCE_LOCAL : p.getSource())
+                            .repoUrl(p.getRepoUrl())
+                            .branch(p.getBranch())
+                            .localPath(p.getLocalPath())
+                            .scheduleCron(p.getScheduleCron())
+                            .scheduleEnabled(p.isScheduleEnabled())
+                            .emailNotify(p.isEmailNotify())
+                            .emails(p.getEmails())
+                            .autoSyncEnabled(p.isAutoSyncEnabled())
+                            .syncIntervalMinutes(p.getSyncIntervalMinutes())
+                            .agentReviewEnabled(p.isAgentReviewEnabled())
+                            .autoScanEnabled(p.isAutoScanEnabled())
+                            .scanIntervalMinutes(p.getScanIntervalMinutes())
+                            .enabled(p.isEnabled())
+                            .build();
+                    // 令牌不随配置导入（避免明文传输）；如需私有仓库请在「设置」配置全局令牌
+                    create(fresh);
+                    imported++;
+                } catch (Exception e) {
+                    failed++;
+                    errors.add(Map.of("name", name, "message",
+                            e.getMessage() == null ? e.getClass().getSimpleName() : e.getMessage()));
+                }
+            }
+        }
+        result.put("imported", imported);
+        result.put("skipped", skipped);
+        result.put("failed", failed);
+        result.put("errors", errors);
+        return result;
+    }
+
+    private Project cloneProject(Project p) {
+        return Project.builder()
+                .name(p.getName())
+                .alias(p.getAlias())
+                .tags(p.getTags() == null ? null : new java.util.ArrayList<>(p.getTags()))
+                .group(p.getGroup())
+                .description(p.getDescription())
+                .source(p.getSource())
+                .repoUrl(p.getRepoUrl())
+                .branch(p.getBranch())
+                .localPath(p.getLocalPath())
+                .scheduleCron(p.getScheduleCron())
+                .scheduleEnabled(p.isScheduleEnabled())
+                .emailNotify(p.isEmailNotify())
+                .emails(p.getEmails() == null ? null : new java.util.ArrayList<>(p.getEmails()))
+                .autoSyncEnabled(p.isAutoSyncEnabled())
+                .syncIntervalMinutes(p.getSyncIntervalMinutes())
+                .agentReviewEnabled(p.isAgentReviewEnabled())
+                .autoScanEnabled(p.isAutoScanEnabled())
+                .scanIntervalMinutes(p.getScanIntervalMinutes())
+                .enabled(p.isEnabled())
+                .build();
     }
 
 }

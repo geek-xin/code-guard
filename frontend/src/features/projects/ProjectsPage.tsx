@@ -1,5 +1,5 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
-import { Plus, RefreshCw, ScanSearch, Pencil, Trash2, FolderGit2, Github, Gitlab, FolderOpen, Clock, Mail, Search, Tags, History } from 'lucide-react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { Plus, RefreshCw, ScanSearch, Pencil, Trash2, FolderGit2, Github, Gitlab, FolderOpen, Clock, Mail, Search, Tags, History, Download, Upload } from 'lucide-react';
 import GroupManageDialog from '@/features/groups/GroupManageDialog';
 import { api, Project, ProjectGroup } from '@/lib/api';
 import { Card, CardContent } from '@/components/ui/card';
@@ -30,6 +30,7 @@ export default function ProjectsPage() {
   const [busyId, setBusyId] = useState<string | null>(null);
   const [nameFilter, setNameFilter] = useState('');
   const [groupManageOpen, setGroupManageOpen] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const load = useCallback(() => {
     Promise.all([api.listProjects(), api.listGroups()])
@@ -112,6 +113,48 @@ export default function ProjectsPage() {
     setFormOpen(true);
   };
 
+  /** 导出全部工程配置为 JSON 文件 */
+  const exportConfig = async () => {
+    try {
+      const data = await api.exportProjects();
+      const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `codeguard-projects-${new Date().toISOString().slice(0, 10)}.json`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      setTimeout(() => URL.revokeObjectURL(url), 5000);
+      toast.success(`已导出 ${data.count} 个工程配置`);
+    } catch (e: any) {
+      toast.error(e?.message ?? '导出失败');
+    }
+  };
+
+  /** 从 JSON 文件导入工程配置 */
+  const importConfig = async (file: File) => {
+    try {
+      const text = await file.text();
+      const payload = JSON.parse(text);
+      const projects = Array.isArray(payload) ? payload : payload.projects;
+      if (!Array.isArray(projects)) {
+        throw new Error('配置文件格式不正确（缺少 projects 数组）');
+      }
+      const res = await api.importProjects({ version: Array.isArray(payload) ? 1 : payload.version, projects });
+      toast.success(`导入完成：新增 ${res.imported} · 跳过 ${res.skipped} · 失败 ${res.failed}`);
+      if (res.errors && res.errors.length > 0) {
+        const first = res.errors.slice(0, 3).map((e) => `${e.name}：${e.message}`).join('\n');
+        toast.info(`导入详情：\n${first}`);
+      }
+      load();
+    } catch (e: any) {
+      toast.error(e?.message ?? '导入失败，请检查文件格式');
+    } finally {
+      if (fileInputRef.current) fileInputRef.current.value = '';
+    }
+  };
+
   if (loading) {
     return <div className="py-20 text-center text-sm font-semibold text-ink-muted">加载中...</div>;
   }
@@ -138,9 +181,25 @@ export default function ProjectsPage() {
           <Button variant="outline" onClick={() => setGroupManageOpen(true)}>
             <Tags className="h-4 w-4" /> 管理分组
           </Button>
+          <Button variant="outline" onClick={exportConfig} title="导出全部工程配置为 JSON">
+            <Download className="h-4 w-4" /> 导出
+          </Button>
+          <Button variant="outline" onClick={() => fileInputRef.current?.click()} title="从 JSON 文件导入工程配置">
+            <Upload className="h-4 w-4" /> 导入
+          </Button>
           <Button onClick={openCreate}>
             <Plus className="h-4 w-4" /> 添加项目
           </Button>
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept=".json,application/json"
+            className="hidden"
+            onChange={(e) => {
+              const f = e.target.files?.[0];
+              if (f) importConfig(f);
+            }}
+          />
         </div>
       </div>
 

@@ -49,15 +49,15 @@ public class DocxReportBuilder {
         xml.append("<w:body>");
 
         // 标题
-        xml.append(p("CodeGuard 代码安全扫描报告", 36, true, "2D2D2D"));
+        xml.append(p("CodeGuard 代码安全扫描报告", 24, true, "2D2D2D"));
         xml.append(p("项目：" + esc(scan.getProjectName()) + "    状态：" + esc(scan.getStatus())
                 + "    触发方式：" + ("SCHEDULED".equals(scan.getTrigger()) ? "定时扫描" : "手动扫描")
                 + "    时间：" + fmt(scan.getStartedAt())
-                + "    耗时：" + (scan.getDurationMs() == null ? "-" : (scan.getDurationMs() / 1000.0) + "s"), 20, false, null));
+                + "    耗时：" + (scan.getDurationMs() == null ? "-" : (scan.getDurationMs() / 1000.0) + "s"), 11, false, null));
         xml.append(emptyP());
 
         // 汇总表
-        xml.append(p("一、漏洞汇总", 28, true, null));
+        xml.append(p("一、漏洞汇总", 16, true, null));
         String[][] summaryRows = {
                 {"严重", str(s.get("critical"))}, {"高危", str(s.get("high"))},
                 {"中危", str(s.get("medium"))}, {"低危", str(s.get("low"))},
@@ -69,7 +69,7 @@ public class DocxReportBuilder {
         // 引擎分布
         Object eng = s.get("byEngine");
         if (eng instanceof Map<?, ?> m) {
-            xml.append(p("二、按引擎分布", 28, true, null));
+            xml.append(p("二、按引擎分布", 16, true, null));
             String[][] engineRows = new String[m.size()][2];
             int i = 0;
             for (var e : m.entrySet()) {
@@ -81,52 +81,64 @@ public class DocxReportBuilder {
             xml.append(emptyP());
         }
 
-        // 漏洞明细
-        xml.append(p("三、漏洞明细（共 " + findings.size() + " 条）", 28, true, null));
+        // 漏洞明细（紧凑主表：等级/漏洞/引擎/位置/编号）
+        xml.append(p("三、漏洞明细（共 " + findings.size() + " 条）", 16, true, null));
         List<ScanFinding> sorted = findings.stream()
                 .sorted((a, b) -> Integer.compare(sevRank(b.getSeverity()), sevRank(a.getSeverity())))
                 .toList();
+        String[][] detailRows = new String[sorted.size()][5];
         for (int idx = 0; idx < sorted.size(); idx++) {
             ScanFinding f = sorted.get(idx);
-            xml.append(p((idx + 1) + ". [" + sevLabel(f.getSeverity()) + "] " + esc(f.getTitle()), 24, true, null));
-            String[][] rows = {
-                    {"引擎", engineLabel(f.getEngine())},
-                    {"类别", f.getCategory() == null ? "-" : esc(f.getCategory())},
-                    {"编号", f.getVulnId() == null ? "-" : esc(f.getVulnId())},
-                    {"位置", f.getFile() == null ? "-" : esc(f.getFile()) + (f.getLine() != null ? " : " + f.getLine() : "")},
-                    {"依赖", f.getDependencyName() == null ? "-" : esc(f.getDependencyName() + "@" + f.getDependencyVersion())},
-                    {"修复版本", f.getFixedVersion() == null ? "-" : esc(f.getFixedVersion())},
-                    {"描述", f.getDescription() == null ? "-" : esc(f.getDescription())},
-                    {"解决方案", f.getSolution() == null ? "-" : esc(f.getSolution())},
-            };
-            xml.append(table(new String[]{"项目", "内容"}, rows, new int[]{1800, 3600}));
-            xml.append(emptyP());
+            detailRows[idx][0] = sevLabel(f.getSeverity());
+            detailRows[idx][1] = trimText(MarkdownReportRenderer.inlineClean(f.getTitle()), 160);
+            detailRows[idx][2] = engineLabel(f.getEngine());
+            detailRows[idx][3] = trimText(ReportPaths.shortPath(f.getFile()), 60)
+                    + (f.getLine() != null ? " : " + f.getLine() : "");
+            detailRows[idx][4] = trimText(f.getVulnId(), 40);
         }
-
-        if (scan.getAgentReview() != null && !scan.getAgentReview().isBlank()) {
-            xml.append(p("四、AI 审查意见", 28, true, null));
-            for (String line : scan.getAgentReview().split("\n")) {
-                xml.append(p(esc(line), 20, false, null));
+        xml.append(table(new String[]{"等级", "漏洞", "引擎", "位置", "编号"},
+                detailRows, new int[]{800, 3200, 1100, 1900, 1800}));
+        xml.append(emptyP());
+        // 关键字段详情（依赖/修复版本/解决方案）以紧凑小字列于表后
+        for (int idx = 0; idx < sorted.size(); idx++) {
+            ScanFinding f = sorted.get(idx);
+            String dep = f.getDependencyName() == null ? null
+                    : "依赖 " + f.getDependencyName() + "@" + f.getDependencyVersion()
+                    + (f.getFixedVersion() != null ? "（修复版本 " + f.getFixedVersion() + "）" : "");
+            String desc = f.getDescription() == null ? null : trimText(oneLine(f.getDescription()), 200);
+            String sol = f.getSolution() == null ? null : trimText(oneLine(f.getSolution()), 200);
+            if (dep != null || desc != null || sol != null) {
+                xml.append(p(esc((idx + 1) + ". " + trimText(oneLine(MarkdownReportRenderer.inlineClean(f.getTitle())), 80)
+                        + "（" + sevLabel(f.getSeverity()) + "）"), 11, true, null));
+                if (dep != null) xml.append(p(esc(dep), 9.5f, false, null));
+                if (desc != null) xml.append(p(esc("描述：" + desc), 9.5f, false, null));
+                if (sol != null) xml.append(p(esc("解决方案：" + sol), 9.5f, false, "1A7F5A"));
+                xml.append(emptyP());
             }
         }
 
+        if (scan.getAgentReview() != null && !scan.getAgentReview().isBlank()) {
+            xml.append(p("四、AI 审查意见", 16, true, null));
+            renderMarkdown(xml, scan.getAgentReview());
+        }
+
         xml.append(emptyP());
-        xml.append(p("本报告由 CodeGuard 代码安全分析平台自动生成 · " + fmt(Instant.now().toString()), 18, false, "8A8A8A"));
+        xml.append(p("本报告由 CodeGuard 代码安全分析平台自动生成 · " + fmt(Instant.now().toString()), 9, false, "8A8A8A"));
         xml.append("<w:sectPr><w:pgSz w:w=\"11906\" w:h=\"16838\"/><w:pgMar w:top=\"1440\" w:right=\"1440\" w:bottom=\"1440\" w:left=\"1440\"/></w:sectPr>");
         xml.append("</w:body></w:document>");
         return xml.toString();
     }
 
-    private String p(String text, int size, boolean bold, String color) {
+    private String p(String text, float size, boolean bold, String color) {
         // 单元格/段落文本内不能有裸换行符（会破坏 OOXML 文本节点渲染），统一替换为空格
         String safeText = text == null ? "" : text.replace("\r", " ").replace("\n", " ");
         StringBuilder b = new StringBuilder();
         b.append("<w:p><w:pPr><w:spacing w:before=\"80\" w:after=\"80\"/>");
-        b.append("<w:rPr><w:sz w:val=\"").append(size * 2).append("\"/><w:szCs w:val=\"").append(size * 2).append("\"/>");
+        b.append("<w:rPr><w:sz w:val=\"").append(Math.round(size * 2)).append("\"/><w:szCs w:val=\"").append(Math.round(size * 2)).append("\"/>");
         if (bold) b.append("<w:b/>");
         if (color != null) b.append("<w:color w:val=\"").append(color).append("\"/>");
         b.append("</w:rPr></w:pPr>");
-        b.append("<w:r><w:rPr><w:sz w:val=\"").append(size * 2).append("\"/><w:szCs w:val=\"").append(size * 2).append("\"/>");
+        b.append("<w:r><w:rPr><w:sz w:val=\"").append(Math.round(size * 2)).append("\"/><w:szCs w:val=\"").append(Math.round(size * 2)).append("\"/>");
         if (bold) b.append("<w:b/>");
         if (color != null) b.append("<w:color w:val=\"").append(color).append("\"/>");
         b.append("</w:rPr><w:t xml:space=\"preserve\">").append(safeText).append("</w:t></w:r></w:p>");
@@ -137,29 +149,92 @@ public class DocxReportBuilder {
         return "<w:p/>";
     }
 
+    /** 渲染 AI 审查的 Markdown 块为 Word 段落/表格 */
+    private void renderMarkdown(StringBuilder xml, String markdown) {
+        for (MarkdownReportRenderer.Block b : MarkdownReportRenderer.parse(markdown)) {
+            switch (b.type) {
+                case H1, H2, H3, H4 -> {
+                    int size = switch (b.type) {
+                        case H1 -> 16;
+                        case H2 -> 14;
+                        case H3 -> 13;
+                        default -> 12;
+                    };
+                    xml.append(p(esc(b.text), size, true, null));
+                }
+                case PARAGRAPH, QUOTE -> xml.append(p(esc(b.text), 10, false, null));
+                case LIST -> xml.append(p(esc("• " + b.text), 10, false, null));
+                case CODE -> xml.append(p(esc(trimText(b.text, 500)), 8.5f, false, "444444"));
+                case TABLE -> {
+                    if (b.table != null && !b.table.isEmpty()) {
+                        int cols = 1;
+                        for (List<String> r : b.table) {
+                            cols = Math.max(cols, r.size());
+                        }
+                        int[] widths = new int[cols];
+                        for (int c = 0; c < cols; c++) {
+                            widths[c] = 5400 / cols;
+                        }
+                        String[][] rows = new String[b.table.size()][cols];
+                        for (int i = 0; i < b.table.size(); i++) {
+                            for (int c = 0; c < cols; c++) {
+                                rows[i][c] = c < b.table.get(i).size() ? b.table.get(i).get(c) : "";
+                            }
+                        }
+                        xml.append(table(headers(b.table.get(0)), rows, widths));
+                        xml.append(emptyP());
+                    }
+                }
+                default -> {
+                    // BLANK 忽略
+                }
+            }
+        }
+    }
+
+    private String[] headers(List<String> first) {
+        return first.toArray(new String[0]);
+    }
+
     private String table(String[] headers, String[][] rows, int[] widths) {
         StringBuilder b = new StringBuilder();
         b.append("<w:tbl><w:tblPr><w:tblBorders>");
         for (String border : new String[]{"top", "left", "bottom", "right", "insideH", "insideV"}) {
             b.append("<w:").append(border).append(" w:val=\"single\" w:sz=\"4\" w:color=\"444444\"/>");
         }
-        b.append("</w:tblBorders><w:tblW w:w=\"0\" w:type=\"auto\"/></w:tblPr>");
+        b.append("</w:tblBorders>");
+        // 固定布局：让 gridCol / tcW 生效，避免 Word 按内容自动重排导致列宽失控
+        b.append("<w:tblLayout w:type=\"fixed\"/>");
+        // 列宽总和不超过页面内容宽（A4 页宽 11906 - 左右边距 2880 ≈ 9000 twips），
+        // 避免 Word 过度压缩导致每列过窄、文字破碎折行
+        int total = 0;
+        for (int w : widths) {
+            total += w;
+        }
+        if (total > 9000 && widths.length > 0) {
+            double ratio = 9000.0 / total;
+            for (int i = 0; i < widths.length; i++) {
+                widths[i] = (int) Math.round(widths[i] * ratio);
+            }
+        }
+        b.append("<w:tblW w:w=\"").append(total > 9000 ? 9000 : total).append("\" w:type=\"dxa\"/></w:tblPr>");
         b.append("<w:tblGrid>");
         for (int w : widths) b.append("<w:gridCol w:w=\"").append(w).append("\"/>");
         b.append("</w:tblGrid>");
         // header
         b.append("<w:tr>");
-        for (String h : headers) {
-            b.append("<w:tc><w:tcPr><w:shd w:val=\"clear\" w:color=\"auto\" w:fill=\"E8E8E8\"/></w:tcPr>");
-            b.append(p(h, 20, true, null));
+        for (int c = 0; c < headers.length; c++) {
+            b.append("<w:tc><w:tcPr><w:tcW w:w=\"").append(widths[c]).append("\" w:type=\"dxa\"/>")
+                    .append("<w:shd w:val=\"clear\" w:color=\"auto\" w:fill=\"E8E8E8\"/></w:tcPr>");
+            b.append(p(esc(headers[c]), 11, true, null));
             b.append("</w:tc>");
         }
         b.append("</w:tr>");
         for (String[] row : rows) {
             b.append("<w:tr>");
-            for (String cell : row) {
-                b.append("<w:tc><w:tcPr><w:tcW w:w=\"0\" w:type=\"auto\"/></w:tcPr>");
-                b.append(p(cell, 18, false, null));
+            for (int c = 0; c < row.length; c++) {
+                b.append("<w:tc><w:tcPr><w:tcW w:w=\"").append(widths[c % widths.length]).append("\" w:type=\"dxa\"/></w:tcPr>");
+                b.append(p(esc(row[c]), 9.5f, false, null));
                 b.append("</w:tc>");
             }
             b.append("</w:tr>");
@@ -218,6 +293,18 @@ public class DocxReportBuilder {
 
     private String str(Object o) {
         return o == null ? "0" : String.valueOf(o);
+    }
+
+    private String trimText(String s, int max) {
+        if (s == null) {
+            return "";
+        }
+        String one = oneLine(s);
+        return one.length() <= max ? one : one.substring(0, max) + "...";
+    }
+
+    private String oneLine(String s) {
+        return s == null ? "" : s.replaceAll("\\s+", " ").trim();
     }
 
     private String fmt(String iso) {
