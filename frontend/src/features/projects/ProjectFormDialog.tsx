@@ -43,7 +43,6 @@ export default function ProjectFormDialog({
   const [branchError, setBranchError] = useState('');
   const [branchLoaded, setBranchLoaded] = useState(false);
   const [localPath, setLocalPath] = useState('');
-  const [token, setToken] = useState('');
   const [scheduleCron, setScheduleCron] = useState('');
   const [scheduleEnabled, setScheduleEnabled] = useState(false);
   const [autoScan, setAutoScan] = useState(true);
@@ -92,7 +91,6 @@ export default function ProjectFormDialog({
       setBranchLoaded(false);
       setBranchError('');
       setLocalPath(project?.localPath ?? '');
-      setToken('');
       setScheduleCron(project?.scheduleCron ?? '');
       setScheduleEnabled(project?.scheduleEnabled ?? false);
       setAutoScan(project?.autoScanEnabled ?? true);
@@ -109,10 +107,10 @@ export default function ProjectFormDialog({
   /** 仓库地址/来源变化后，清空已加载的分支（编辑已有项目时仅在需要时手动加载） */
   useEffect(() => {
     if (!open) return;
-    setBranches([]);
-    setDefaultBranch('');
-    setBranchLoaded(false);
-    setBranchError('');
+      setBranches([]);
+      setDefaultBranch('');
+      setBranchLoaded(false);
+      setBranchError('');
   }, [open, source, repoUrl]);
 
   /** 加载远端分支（GitHub 公开仓库无需 Token；GitLab 必须提供 Token） */
@@ -122,7 +120,8 @@ export default function ProjectFormDialog({
     setBranchLoading(true);
     setBranchError('');
     try {
-      const res = await api.listBranches(source, url, token.trim() || undefined);
+      // 令牌统一在「设置」中配置，此处复用全局令牌（服务端自动回退）
+      const res = await api.listBranches(source, url);
       setBranches(res.branches);
       setDefaultBranch(res.defaultBranch);
       setBranchLoaded(true);
@@ -136,7 +135,7 @@ export default function ProjectFormDialog({
     } finally {
       setBranchLoading(false);
     }
-  }, [source, repoUrl, token]);
+  }, [source, repoUrl]);
 
   /** 新建项目时，仓库地址/Token 停顿后自动加载分支 */
   useEffect(() => {
@@ -145,7 +144,7 @@ export default function ProjectFormDialog({
     if (!/^https?:\/\/|^git@/.test(url)) return;
     const t = setTimeout(loadBranches, 800);
     return () => clearTimeout(t);
-  }, [open, source, repoUrl, token, project, loadBranches]);
+  }, [open, source, repoUrl, project, loadBranches]);
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -172,7 +171,6 @@ export default function ProjectFormDialog({
         emails: emailNotify ? emails.split(/[,，;\n]/).map((e) => e.trim()).filter(Boolean) : undefined,
         enabled,
       };
-      if (token.trim()) data.token = token.trim();
       if (project) {
         await api.updateProject(project.id, data);
         toast.success('项目已更新');
@@ -302,12 +300,15 @@ export default function ProjectFormDialog({
                   )}
                 </div>
                 <div>
-                  <label className="mb-1 block text-xs font-bold text-ink-muted">访问令牌（私有仓库）</label>
-                  <Input type="password" value={token} onChange={(e) => setToken(e.target.value)}
-                    placeholder={project?.tokenConfigured ? '已配置，留空保持不变' : 'GitHub/GitLab PAT'} />
+                  <label className="mb-1 block text-xs font-bold text-ink-muted">访问令牌</label>
+                  <div className="rounded-md border-2 border-ink/10 bg-paper px-2.5 py-2 text-[11px] font-semibold text-ink-muted">
+                    {project?.tokenConfigured
+                      ? <>该项目已单独配置令牌，优先使用</>
+                      : <>统一使用「<span className="text-primary">设置 → Git 访问令牌</span>」中配置的 {source === 'GITLAB' ? 'GitLab' : 'GitHub'} 令牌拉取私有仓库</>}
+                  </div>
                   {source === 'GITLAB' && (
                     <p className="mt-1 text-[11px] font-semibold text-ink-muted">
-                      GitLab 需填写访问令牌（PAT）才能拉取分支与代码
+                      GitLab 需在设置中配置访问令牌（PAT）才能拉取分支与代码
                     </p>
                   )}
                 </div>

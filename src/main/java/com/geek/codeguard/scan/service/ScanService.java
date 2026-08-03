@@ -60,6 +60,9 @@ public class ScanService implements ScanProgressListener {
     private final Map<String, Sinks.Many<Map<String, Object>>> sinks = new ConcurrentHashMap<>();
     private final Map<String, AtomicBoolean> cancelFlags = new ConcurrentHashMap<>();
     private final Map<String, String> runningProjectScan = new ConcurrentHashMap<>();
+    /** 运行中的扫描记录引用：让 runPipeline 与回调（onStage/onProgress）共享同一实例，
+     *  避免最终 saveRecord(record) 把回调阶段更新（SCA/SAST 等）覆盖回初始 PENDING */
+    private final Map<String, ScanRecord> liveRecords = new ConcurrentHashMap<>();
 
     public ScanService(JsonStore jsonStore, ProjectService projectService, ScaService scaService,
                        SastRuleEngine sastRuleEngine, ReviewAgentService reviewAgentService,
@@ -90,6 +93,8 @@ public class ScanService implements ScanProgressListener {
         public final String scanId;
         public volatile String status = "RUNNING"; // RUNNING / COMPLETED / FAILED / CANCELLED
         public volatile boolean cancelled;
+        /** 供 streamReview 取消监控使用：置位后立即关闭 HTTP 响应流，中断读取 */
+        public final AtomicBoolean cancelledFlag = new AtomicBoolean(false);
         public volatile String error;
         public final StringBuilder thinking = new StringBuilder();
         public volatile String content;
@@ -191,6 +196,7 @@ public class ScanService implements ScanProgressListener {
 
         Sinks.Many<Map<String, Object>> sink = Sinks.many().multicast().onBackpressureBuffer(4096);
         sinks.put(record.getId(), sink);
+        liveRecords.put(record.getId(), record);
         cancelFlags.put(record.getId(), new AtomicBoolean(false));
         runningProjectScan.put(projectId, record.getId());
 
@@ -357,6 +363,7 @@ public class ScanService implements ScanProgressListener {
     private void cleanup(String scanId) {
         AtomicBoolean flag = cancelFlags.remove(scanId);
         sinks.remove(scanId);
+        liveRecords.remove(scanId);
         runningProjectScan.entrySet().removeIf(e -> e.getValue().equals(scanId));
         if (flag != null) {
             flag.set(false);
@@ -388,8 +395,18 @@ public class ScanService implements ScanProgressListener {
         if (scanId == null) {
             return;
         }
-        ScanRecord record = getScan(scanId);
+        ScanRecord record = liveRecords.getOrDefault(scanId, getScan(scanId));
         updateStage(record, stage, status, message);
+    }
+
+    @Override
+    public void bindScanContext(String scanId) {
+        currentScanId.set(scanId);
+    }
+
+    @Override
+    public void unbindScanContext() {
+        currentScanId.remove();
     }
 
     private void updateStage(ScanRecord record, String stage, String status, String message) {
@@ -417,6 +434,17 @@ public class ScanService implements ScanProgressListener {
         String scanId = currentScanId.get();
         if (scanId == null) {
             return;
+        }
+        ScanRecord record = liveRecords.get(scanId);
+        if (record != null && record.getStages() != null) {
+            ScanRecord.StageProgress sp = record.getStages().computeIfAbsent(stage,
+                    k -> ScanRecord.StageProgress.builder().status("RUNNING").current(0).total(0).build());
+            sp.setStatus("RUNNING");
+            sp.setCurrent(current);
+            sp.setTotal(total);
+            sp.setMessage(message);
+            // 注意：不在这里持久化——SAST 并行线程会并发调用 onProgress，
+            // 并发写同一扫描文件会冲突（JSON 写入失败）。最终状态由 onStage 单线程持久化。
         }
         updateProgress(scanId, stage, current, total, message);
     }
@@ -524,11 +552,14 @@ public class ScanService implements ScanProgressListener {
                 }
                 job.thinking.append(delta);
                 emitAgent(sink, "thinking", Map.of("delta", delta));
-            });
+            }, job.cancelledFlag);
             if (job.cancelled) {
                 return; // 已在 stopAgentReview 中置为 CANCELLED 并发事件
             }
             if (full == null || full.isBlank()) {
+                if (job.cancelled) {
+                    return; // 取消导致流中断返回 null，保持 CANCELLED
+                }
                 job.status = "FAILED";
                 job.error = "AI 审查调用失败，请检查 API Key 与网络后重试";
                 emitAgent(sink, "error", Map.of("message", job.error));
@@ -541,6 +572,9 @@ public class ScanService implements ScanProgressListener {
             saveRecord(record);
             emitAgent(sink, "done", Map.of("status", "COMPLETED", "content", full));
         } catch (Exception e) {
+            if (job.cancelled) {
+                return; // 取消路径，保持 CANCELLED 状态不被覆盖为 FAILED
+            }
             job.status = "FAILED";
             job.error = e.getMessage() == null ? "AI 审查失败" : e.getMessage();
             job.finishedAt = System.currentTimeMillis();
@@ -553,6 +587,7 @@ public class ScanService implements ScanProgressListener {
         AgentReviewJob job = agentJobs.get(scanId);
         if (job != null && "RUNNING".equals(job.status)) {
             job.cancelled = true;
+            job.cancelledFlag.set(true);
             job.status = "CANCELLED";
             job.finishedAt = System.currentTimeMillis();
             Sinks.Many<Map<String, Object>> sink = agentJobSinks.get(scanId);

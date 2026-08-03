@@ -124,13 +124,18 @@ public class SastRuleEngine {
         List<CompletableFuture<Void>> futures = new ArrayList<>();
         for (List<Path> chunk : chunks) {
             futures.add(CompletableFuture.runAsync(() -> {
-                for (Path file : chunk) {
-                    if (cancelled != null && cancelled.get()) {
-                        throw new java.util.concurrent.CancellationException("扫描已取消");
+                listener.bindScanContext(scanId);
+                try {
+                    for (Path file : chunk) {
+                        if (cancelled != null && cancelled.get()) {
+                            throw new java.util.concurrent.CancellationException("扫描已取消");
+                        }
+                        int done = doneCount.incrementAndGet();
+                        listener.onProgress("SAST", done, total, fileScanner.relative(root, file));
+                        scanFile(root, file, projectId, scanId, listener, allFindings);
                     }
-                    int done = doneCount.incrementAndGet();
-                    listener.onProgress("SAST", done, total, fileScanner.relative(root, file));
-                    scanFile(root, file, projectId, scanId, listener, allFindings);
+                } finally {
+                    listener.unbindScanContext();
                 }
             }, parallelPool));
         }

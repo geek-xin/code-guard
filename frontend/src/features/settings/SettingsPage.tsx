@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Sparkles, Save, Loader2, KeyRound, Github, Gitlab, ShieldCheck, RefreshCw, Mail, PlugZap } from 'lucide-react';
+import { Sparkles, Save, Loader2, KeyRound, Github, Gitlab, ShieldCheck, RefreshCw, Mail, PlugZap, GitBranch, CircleCheck, CircleX } from 'lucide-react';
 import { api, SettingsView } from '@/lib/api';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -34,6 +34,12 @@ export default function SettingsPage() {
   const [glSecret, setGlSecret] = useState('');
   const [glRedirect, setGlRedirect] = useState('http://localhost:9997/api/auth/gitlab/callback');
   const [glBaseUrl, setGlBaseUrl] = useState('https://gitlab.com');
+  // Git 访问令牌
+  const [gitGithubToken, setGitGithubToken] = useState('');
+  const [gitGitlabToken, setGitGitlabToken] = useState('');
+  const [gitGitlabUrl, setGitGitlabUrl] = useState('https://gitlab.com');
+  const [gitTesting, setGitTesting] = useState<'GITHUB' | 'GITLAB' | null>(null);
+  const [gitTestResult, setGitTestResult] = useState<{ source: string; ok: boolean; latencyMs?: number; user?: string; error?: string } | null>(null);
 
   const load = () => {
     api.getSettings().then((s) => {
@@ -57,6 +63,10 @@ export default function SettingsPage() {
       setGlSecret('');
       setGlRedirect(s.oauth.gitlabRedirectUri || 'http://localhost:9997/api/auth/gitlab/callback');
       setGlBaseUrl(s.oauth.gitlabBaseUrl || 'https://gitlab.com');
+      setGitGithubToken('');
+      setGitGitlabToken('');
+      setGitGitlabUrl(s.git?.gitlabUrl || 'https://gitlab.com');
+      setGitTestResult(null);
     }).catch(() => {});
   };
 
@@ -111,17 +121,41 @@ export default function SettingsPage() {
           gitlabRedirectUri: glRedirect.trim() || undefined,
           gitlabBaseUrl: glBaseUrl.trim() || undefined,
         },
+        git: {
+          githubToken: gitGithubToken.trim() || undefined,
+          gitlabToken: gitGitlabToken.trim() || undefined,
+          gitlabUrl: gitGitlabUrl.trim() || undefined,
+        },
       };
       const updated = await api.updateSettings(payload);
       setView(updated);
       setApiKey('');
       setGhSecret('');
       setGlSecret('');
+      setGitGithubToken('');
+      setGitGitlabToken('');
       toast.success('全局配置已保存并生效（无需重启）');
     } catch (e: any) {
       toast.error(e?.message ?? '保存失败');
     } finally {
       setSaving(false);
+    }
+  };
+
+  const testGit = async (source: 'GITHUB' | 'GITLAB') => {
+    setGitTesting(source);
+    setGitTestResult(null);
+    try {
+      const res = await api.testGit(
+        source,
+        source === 'GITHUB' ? gitGithubToken.trim() || undefined : gitGitlabToken.trim() || undefined,
+        gitGitlabUrl.trim() || undefined,
+      );
+      setGitTestResult({ source, ok: res.ok, user: res.user, error: res.error });
+    } catch (e: any) {
+      setGitTestResult({ source, ok: false, error: e?.message ?? '测试失败' });
+    } finally {
+      setGitTesting(null);
     }
   };
 
@@ -408,6 +442,103 @@ export default function SettingsPage() {
               </div>
             </div>
           </div>
+
+          <div className="flex items-center gap-2">
+            <Button onClick={save} disabled={saving}>
+              {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
+              保存配置
+            </Button>
+            <Button variant="ghost" onClick={load}>
+              <RefreshCw className="h-4 w-4" /> 刷新
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Git 访问令牌（GitHub / GitLab 私有仓库拉取、分支查询、创建 Issue） */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <GitBranch className="h-4 w-4" /> Git 访问令牌（GitHub / GitLab）
+          </CardTitle>
+          <CardDescription>
+            在这里统一配置 GitHub / GitLab 私有仓库访问令牌，添加项目时无需再逐个填写；项目未单独配置令牌时自动复用这里的全局令牌
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="rounded-md border-2 border-ink/10 bg-paper p-3">
+            <div className="mb-2 flex flex-wrap items-center gap-2">
+              <span className="flex items-center gap-2 text-sm font-bold text-ink">
+                <Github className="h-4 w-4" /> GitHub Personal Access Token
+              </span>
+              {view.git?.githubTokenConfigured
+                ? <Badge variant="success">已配置</Badge>
+                : <Badge variant="info">未配置</Badge>}
+            </div>
+            <div className="flex items-center gap-2">
+              <Input type="password" value={gitGithubToken} onChange={(e) => setGitGithubToken(e.target.value)}
+                placeholder={view.git?.githubTokenConfigured ? '已配置（输入新 Token 可覆盖，留空保持不变）' : 'ghp_... 或 github_pat_...'} />
+              <Button type="button" variant="outline" onClick={() => testGit('GITHUB')} disabled={gitTesting !== null}>
+                {gitTesting === 'GITHUB' ? <Loader2 className="h-4 w-4 animate-spin" /> : <PlugZap className="h-4 w-4" />}
+                {gitTesting === 'GITHUB' ? '测试中' : '测试连接'}
+              </Button>
+            </div>
+            <p className="mt-1 text-[11px] font-semibold text-ink-subtle">
+              GitHub → Settings → Developer settings → Personal access tokens 生成（勾选 repo 范围）
+            </p>
+          </div>
+
+          <div className="rounded-md border-2 border-ink/10 bg-paper p-3">
+            <div className="mb-2 flex flex-wrap items-center gap-2">
+              <span className="flex items-center gap-2 text-sm font-bold text-ink">
+                <Gitlab className="h-4 w-4" /> GitLab Personal Access Token
+              </span>
+              {view.git?.gitlabTokenConfigured
+                ? <Badge variant="success">已配置（{view.git.gitlabUrl}）</Badge>
+                : <Badge variant="info">未配置</Badge>}
+            </div>
+            <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+              <div>
+                <label className="mb-1 block text-xs font-bold text-ink-muted">GitLab Base URL</label>
+                <Input value={gitGitlabUrl} onChange={(e) => setGitGitlabUrl(e.target.value)} placeholder="https://gitlab.com" />
+              </div>
+              <div>
+                <label className="mb-1 block text-xs font-bold text-ink-muted">访问令牌</label>
+                <Input type="password" value={gitGitlabToken} onChange={(e) => setGitGitlabToken(e.target.value)}
+                  placeholder={view.git?.gitlabTokenConfigured ? '已配置（留空保持不变）' : 'glpat-...'} />
+              </div>
+            </div>
+            <div className="mt-2 flex items-center gap-2">
+              <Button type="button" variant="outline" onClick={() => testGit('GITLAB')} disabled={gitTesting !== null}>
+                {gitTesting === 'GITLAB' ? <Loader2 className="h-4 w-4 animate-spin" /> : <PlugZap className="h-4 w-4" />}
+                {gitTesting === 'GITLAB' ? '测试中' : '测试连接'}
+              </Button>
+            </div>
+            <p className="mt-1 text-[11px] font-semibold text-ink-subtle">
+              GitLab → User Settings → Access Tokens 生成（勾选 read_api / api 范围）；内网 GitLab 请填写对应 Base URL
+            </p>
+          </div>
+
+          {/* 测试结果 */}
+          {gitTestResult && (
+            <div className={cn(
+              'rounded-md border-chunky p-3 text-sm',
+              gitTestResult.ok ? 'border-ink bg-secondary/30' : 'border-ink bg-error/10',
+            )}>
+              <div className="flex items-start gap-2">
+                {gitTestResult.ok
+                  ? <Badge variant="success"><CircleCheck className="mr-1 h-3.5 w-3.5" /> 连接正常</Badge>
+                  : <Badge variant="danger"><CircleX className="mr-1 h-3.5 w-3.5" /> 连接失败</Badge>}
+                <div className="break-all text-xs font-semibold text-ink-muted">
+                  {gitTestResult.source === 'GITHUB' ? 'GitHub' : 'GitLab'}
+                  {gitTestResult.ok
+                    ? (gitTestResult.user ? ` · 已认证为 ${gitTestResult.user}` : ' · 令牌有效')
+                    : ` · ${gitTestResult.error ?? '未知错误'}`}
+                  {gitTestResult.latencyMs != null && <span>（{gitTestResult.latencyMs}ms）</span>}
+                </div>
+              </div>
+            </div>
+          )}
 
           <div className="flex items-center gap-2">
             <Button onClick={save} disabled={saving}>

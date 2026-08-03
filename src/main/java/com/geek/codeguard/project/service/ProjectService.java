@@ -5,6 +5,7 @@ import com.geek.codeguard.common.exception.BusinessException;
 import com.geek.codeguard.config.JsonStore;
 import com.geek.codeguard.project.git.GitService;
 import com.geek.codeguard.project.model.Project;
+import com.geek.codeguard.settings.service.SettingsService;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
@@ -21,12 +22,14 @@ public class ProjectService {
 
     private final JsonStore jsonStore;
     private final GitService gitService;
+    private final SettingsService settingsService;
     /** 每个项目一把锁，防止并发 git 操作同一工作区 */
     private final java.util.concurrent.ConcurrentHashMap<String, Object> projectLocks = new java.util.concurrent.ConcurrentHashMap<>();
 
-    public ProjectService(JsonStore jsonStore, GitService gitService) {
+    public ProjectService(JsonStore jsonStore, GitService gitService, SettingsService settingsService) {
         this.jsonStore = jsonStore;
         this.gitService = gitService;
+        this.settingsService = settingsService;
     }
 
     public List<Project> list() {
@@ -187,6 +190,10 @@ public class ProjectService {
                 return dir;
             }
             String token = project.getToken();
+            // 项目未单独配置令牌时，复用「设置」中的全局 GitHub/GitLab 令牌
+            if (token == null || token.isBlank()) {
+                token = settingsService.effectiveGitToken(project.getSource());
+            }
             return gitService.syncRepo(project.getId(), project.getSource(), project.getRepoUrl(),
                     project.getBranch(), token);
         }

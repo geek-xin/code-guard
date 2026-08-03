@@ -99,6 +99,30 @@ public class SettingsService {
             validateOAuth(next);
             current.setOauth(next);
         }
+        if (update.getGit() != null) {
+            Settings.Git cur = current.getGit() == null ? Settings.Git.builder().build() : current.getGit();
+            Settings.Git next = Settings.Git.builder()
+                    .gitlabUrl(notBlank(update.getGit().getGitlabUrl())
+                            ? update.getGit().getGitlabUrl().trim() : cur.getGitlabUrl())
+                    .githubToken(cur.getGithubToken())
+                    .gitlabToken(cur.getGitlabToken())
+                    .build();
+            // 令牌：传入非空且非脱敏占位符才覆盖
+            String gt = update.getGit().getGithubToken();
+            if (notBlank(gt) && !"******".equals(gt.trim())) {
+                next.setGithubToken(gt.trim());
+            }
+            String lt = update.getGit().getGitlabToken();
+            if (notBlank(lt) && !"******".equals(lt.trim())) {
+                next.setGitlabToken(lt.trim());
+            }
+            if (notBlank(next.getGitlabUrl())
+                    && !next.getGitlabUrl().startsWith("http://")
+                    && !next.getGitlabUrl().startsWith("https://")) {
+                throw new BusinessException(ErrorCodeEnum.BAD_REQUEST, "GitLab Base URL 需以 http:// 或 https:// 开头");
+            }
+            current.setGit(next);
+        }
         jsonStore.write(file(), current);
         log.info("全局配置已更新: {}", Instant.now());
     }
@@ -159,6 +183,29 @@ public class SettingsService {
                 .gitlabBaseUrl(notBlank(s == null ? null : s.getGitlabBaseUrl())
                         ? s.getGitlabBaseUrl() : l.getBaseUrl())
                 .build();
+    }
+
+    /**
+     * Git 令牌生效配置：config/settings.json 优先，缺省回退 application.yml 环境变量。
+     * 令牌仅读取界面保存的全局配置（GitLab Base URL 可复用 OAuth 的 base-url）。
+     */
+    public Settings.Git effectiveGit() {
+        Settings.Git s = get().getGit();
+        return Settings.Git.builder()
+                .githubToken(notBlank(s == null ? null : s.getGithubToken()) ? s.getGithubToken() : null)
+                .gitlabToken(notBlank(s == null ? null : s.getGitlabToken()) ? s.getGitlabToken() : null)
+                .gitlabUrl(notBlank(s == null ? null : s.getGitlabUrl())
+                        ? s.getGitlabUrl() : props.getAuth().getGitlab().getBaseUrl())
+                .build();
+    }
+
+    /** 指定源码来源（GITHUB / GITLAB）对应的全局访问令牌；未配置返回 null */
+    public String effectiveGitToken(String source) {
+        Settings.Git g = effectiveGit();
+        if (g == null) {
+            return null;
+        }
+        return "GITLAB".equalsIgnoreCase(source) ? g.getGitlabToken() : g.getGithubToken();
     }
 
     public void validateOAuth(Settings.OAuth o) {
@@ -222,10 +269,17 @@ public class SettingsService {
         oauth.put("gitlabRedirectUri", eff.getGitlabRedirectUri());
         oauth.put("source", fromSettings ? "settings" : "env");
 
+        Settings.Git effGit = effectiveGit();
+        Map<String, Object> git = new LinkedHashMap<>();
+        git.put("githubTokenConfigured", notBlank(effGit.getGithubToken()));
+        git.put("gitlabTokenConfigured", notBlank(effGit.getGitlabToken()));
+        git.put("gitlabUrl", effGit.getGitlabUrl());
+
         Map<String, Object> result = new LinkedHashMap<>();
         result.put("agent", agent);
         result.put("smtp", smtpView);
         result.put("oauth", oauth);
+        result.put("git", git);
         return result;
     }
 

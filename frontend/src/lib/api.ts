@@ -81,6 +81,7 @@ export const api = {
   createGithubIssue: (id: string) =>
     request<{ number: number; htmlUrl: string; title: string; state: string }>(`/scans/${id}/github-issue`, { method: 'POST' }),
   startAgentReview: (id: string) => request<AgentReviewStatus>(`/scans/${id}/agent-review`, { method: 'POST' }),
+  stopAgentReview: (id: string) => request<AgentReviewStatus>(`/scans/${id}/agent-review/stop`, { method: 'POST' }),
   agentReviewStatus: (id: string) => request<AgentReviewStatus>(`/scans/${id}/agent-review/status`),
   getFindings: (id: string, params: { severity?: string; engine?: string; category?: string; limit?: number } = {}) => {
     const q = new URLSearchParams();
@@ -111,6 +112,9 @@ export const api = {
   testAgent: (data?: SettingsPayload['agent']) =>
     request<{ ok: boolean; latencyMs?: number; model?: string; reply?: string; error?: string }>(
       '/settings/agent/test', { method: 'POST', body: JSON.stringify(data ?? {}) }),
+  testGit: (source: string, token?: string, gitlabUrl?: string) =>
+    request<{ ok: boolean; latencyMs?: number; user?: string; error?: string }>(
+      '/settings/git/test', { method: 'POST', body: JSON.stringify({ source, token: token || undefined, gitlabUrl: gitlabUrl || undefined }) }),
   feedback: (title: string, body: string) =>
     request<{ number: number; htmlUrl: string; title: string; state: string; repoUrl: string }>(
       '/settings/feedback', { method: 'POST', body: JSON.stringify({ title, body }) }),
@@ -290,6 +294,11 @@ export interface SettingsView {
     gitlabRedirectUri?: string;
     source?: string;
   };
+  git: {
+    githubTokenConfigured: boolean;
+    gitlabTokenConfigured: boolean;
+    gitlabUrl: string;
+  };
 }
 
 export interface SettingsPayload {
@@ -317,6 +326,11 @@ export interface SettingsPayload {
     gitlabClientSecret?: string;
     gitlabRedirectUri?: string;
     gitlabBaseUrl?: string;
+  };
+  git?: {
+    githubToken?: string;
+    gitlabToken?: string;
+    gitlabUrl?: string;
   };
 }
 

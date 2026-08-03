@@ -9,6 +9,7 @@ import com.geek.codeguard.project.service.ProjectService;
 import com.geek.codeguard.scan.model.ScanFinding;
 import com.geek.codeguard.scan.model.ScanRecord;
 import com.geek.codeguard.scan.service.ScanService;
+import com.geek.codeguard.settings.service.SettingsService;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
 import lombok.Data;
@@ -27,12 +28,14 @@ public class ScanController {
     private final ScanService scanService;
     private final ProjectService projectService;
     private final GitHubIssueService githubIssueService;
+    private final SettingsService settingsService;
 
     public ScanController(ScanService scanService, ProjectService projectService,
-                          GitHubIssueService githubIssueService) {
+                          GitHubIssueService githubIssueService, SettingsService settingsService) {
         this.scanService = scanService;
         this.projectService = projectService;
         this.githubIssueService = githubIssueService;
+        this.settingsService = settingsService;
     }
 
     @Data
@@ -90,6 +93,10 @@ public class ScanController {
             User user = (User) exchange.getAttribute(CommonConstants.CURRENT_USER_ATTR);
             String token = project.getToken() != null ? project.getToken()
                     : user != null ? user.getAccessToken() : null;
+            // 项目与登录账号均未提供令牌时，复用「设置」中的全局 GitHub 令牌
+            if (token == null || token.isBlank()) {
+                token = settingsService.effectiveGitToken(Project.SOURCE_GITHUB);
+            }
             return githubIssueService.createIssue(project, scan, findings, token);
         }).map(Result::success);
     }

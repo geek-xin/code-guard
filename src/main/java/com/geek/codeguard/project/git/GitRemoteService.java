@@ -17,8 +17,10 @@ import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Comparator;
+import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -66,6 +68,57 @@ public class GitRemoteService {
             case Project.SOURCE_GITLAB -> listGitlabBranches(repoUrl, blankToNull(token));
             default -> throw new BusinessException(ErrorCodeEnum.BAD_REQUEST, "不支持的分支查询来源: " + source);
         };
+    }
+
+    /**
+     * 测试访问令牌是否有效：
+     * - GitHub：GET {api}/user（Authorization: Bearer）
+     * - GitLab：GET {baseUrl}/api/v4/user（PRIVATE-TOKEN）
+     * 不依赖具体仓库，验证令牌本身的可用性。
+     *
+     * @param source    GITHUB / GITLAB
+     * @param token     待测试令牌（为空则返回未配置提示）
+     * @param gitlabUrl GitLab Base URL（GitLab 时使用，默认 https://gitlab.com）
+     */
+    public Map<String, Object> testToken(String source, String token, String gitlabUrl) {
+        Map<String, Object> result = new LinkedHashMap<>();
+        long start = System.currentTimeMillis();
+        try {
+            String kind;
+            String url;
+            if ("GITLAB".equalsIgnoreCase(source)) {
+                kind = "gitlab";
+                String base = blankToNull(gitlabUrl) == null ? "https://gitlab.com" : gitlabUrl.trim();
+                base = base.replaceAll("/+$", "");
+                url = base + "/api/v4/user";
+            } else {
+                kind = "github";
+                url = "https://api.github.com/user";
+            }
+            if (token == null || token.isBlank()) {
+                result.put("ok", false);
+                result.put("latencyMs", System.currentTimeMillis() - start);
+                result.put("error", ("gitlab".equals(kind) ? "GitLab" : "GitHub")
+                        + " 令牌为空，请先填写访问令牌");
+                return result;
+            }
+            JsonNode node = getJson(url, token.trim(), kind);
+            String user = node.path("login").asText(node.path("username").asText(""));
+            result.put("ok", true);
+            result.put("latencyMs", System.currentTimeMillis() - start);
+            result.put("user", user.isBlank() ? "已认证" : user);
+            return result;
+        } catch (BusinessException e) {
+            result.put("ok", false);
+            result.put("latencyMs", System.currentTimeMillis() - start);
+            result.put("error", e.getMessage());
+            return result;
+        } catch (Exception e) {
+            result.put("ok", false);
+            result.put("latencyMs", System.currentTimeMillis() - start);
+            result.put("error", "请求失败: " + rootMessage(e));
+            return result;
+        }
     }
 
     // ---------------- GitHub ----------------

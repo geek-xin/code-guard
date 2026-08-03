@@ -4,6 +4,7 @@ import com.geek.codeguard.common.result.Result;
 import com.geek.codeguard.project.git.GitRemoteService;
 import com.geek.codeguard.project.model.Project;
 import com.geek.codeguard.project.service.ProjectService;
+import com.geek.codeguard.settings.service.SettingsService;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
 import lombok.Data;
@@ -21,10 +22,13 @@ public class ProjectController {
 
     private final ProjectService projectService;
     private final GitRemoteService gitRemoteService;
+    private final SettingsService settingsService;
 
-    public ProjectController(ProjectService projectService, GitRemoteService gitRemoteService) {
+    public ProjectController(ProjectService projectService, GitRemoteService gitRemoteService,
+                             SettingsService settingsService) {
         this.projectService = projectService;
         this.gitRemoteService = gitRemoteService;
+        this.settingsService = settingsService;
     }
 
     private static List<String> normalizeTags(List<String> tags) {
@@ -85,8 +89,15 @@ public class ProjectController {
     /** 查询远程仓库分支列表（GitHub / GitLab），供添加项目时选择拉取分支 */
     @PostMapping("/branches")
     public Mono<Result<GitRemoteService.BranchList>> branches(@RequestBody BranchListRequest req) {
-        return Mono.fromCallable(() -> Result.success(gitRemoteService.listBranches(
-                req.getSource(), req.getRepoUrl(), req.getToken())));
+        return Mono.fromCallable(() -> {
+            String token = req.getToken();
+            // 未在表单填写令牌时，复用「设置」中的全局 GitHub/GitLab 令牌
+            if (token == null || token.isBlank()) {
+                token = settingsService.effectiveGitToken(req.getSource());
+            }
+            return Result.success(gitRemoteService.listBranches(
+                    req.getSource(), req.getRepoUrl(), token));
+        });
     }
 
     @GetMapping

@@ -216,6 +216,17 @@ export default function ScanDetailPage({ scanId }: { scanId: string }) {
     }
   }
 
+  async function stopAgentReview() {
+    try {
+      await api.stopAgentReview(scanId);
+      setAgentStatus('CANCELLED');
+      agentAbort.current?.abort();
+      toast.success('AI 审查已停止');
+    } catch (e: any) {
+      toast.error(e?.message ?? '停止失败');
+    }
+  }
+
   // 进入页面时检查是否已有审查任务在运行（跨会话可见）
   useEffect(() => {
     api.agentReviewStatus(scanId).then((s) => {
@@ -481,6 +492,9 @@ export default function ScanDetailPage({ scanId }: { scanId: string }) {
                     <Loader2 className="h-4 w-4 animate-spin text-primary" />
                     <span className="text-sm font-black text-ink">AI 审查进行中...</span>
                     <Badge variant="warning">实时思考</Badge>
+                    <Button size="sm" variant="danger" className="ml-auto" onClick={stopAgentReview}>
+                      <Square className="mr-1 h-3.5 w-3.5" /> 停止审查
+                    </Button>
                   </div>
                   {/* 实时思考过程（终端风格，自动滚动） */}
                   <div className="overflow-y-auto rounded-md border-chunky border-ink bg-ink p-3" style={{ maxHeight: 420 }}>

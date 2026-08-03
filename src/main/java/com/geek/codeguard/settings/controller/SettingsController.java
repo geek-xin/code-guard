@@ -24,15 +24,18 @@ public class SettingsController {
     private final com.geek.codeguard.github.GitHubIssueService githubIssueService;
     private final com.geek.codeguard.auth.service.UserStore userStore;
     private final com.geek.codeguard.config.CodeGuardProperties props;
+    private final com.geek.codeguard.project.git.GitRemoteService gitRemoteService;
 
     public SettingsController(SettingsService settingsService,
                               com.geek.codeguard.github.GitHubIssueService githubIssueService,
                               com.geek.codeguard.auth.service.UserStore userStore,
-                              com.geek.codeguard.config.CodeGuardProperties props) {
+                              com.geek.codeguard.config.CodeGuardProperties props,
+                              com.geek.codeguard.project.git.GitRemoteService gitRemoteService) {
         this.settingsService = settingsService;
         this.githubIssueService = githubIssueService;
         this.userStore = userStore;
         this.props = props;
+        this.gitRemoteService = gitRemoteService;
     }
 
     /** 平台问题反馈：向平台自身仓库创建 GitHub Issue */
@@ -106,6 +109,26 @@ public class SettingsController {
         private String gitlabBaseUrl;
     }
 
+    @Data
+    public static class GitRequest {
+        @Size(max = 2048)
+        private String githubToken;
+        @Size(max = 2048)
+        private String gitlabToken;
+        @Size(max = 512)
+        private String gitlabUrl;
+    }
+
+    @Data
+    public static class GitTestRequest {
+        /** GITHUB / GITLAB */
+        private String source;
+        /** 待测试令牌（未填则用已保存的全局令牌） */
+        private String token;
+        /** GitLab Base URL（GitLab 时可选） */
+        private String gitlabUrl;
+    }
+
     /** 测试 Agent 连接（使用请求体中的表单值，未填则用已保存配置；不保存） */
     @PostMapping("/agent/test")
     public Mono<Result<Map<String, Object>>> testAgent(@RequestBody(required = false) AgentRequest req) {
@@ -123,11 +146,25 @@ public class SettingsController {
         }).map(Result::success);
     }
 
+    /** 测试 Git 访问令牌（GitHub / GitLab）能否访问成功；不保存 */
+    @PostMapping("/git/test")
+    public Mono<Result<Map<String, Object>>> testGit(@RequestBody(required = false) GitTestRequest req) {
+        return Mono.fromCallable(() -> {
+            String source = req != null && req.getSource() != null ? req.getSource() : "GITHUB";
+            String token = req != null && req.getToken() != null && !req.getToken().isBlank()
+                    ? req.getToken() : settingsService.effectiveGitToken(source);
+            String gitlabUrl = req != null && req.getGitlabUrl() != null && !req.getGitlabUrl().isBlank()
+                    ? req.getGitlabUrl() : settingsService.effectiveGit().getGitlabUrl();
+            return gitRemoteService.testToken(source, token, gitlabUrl);
+        }).map(Result::success);
+    }
+
     @Data
     public static class SettingsRequest {
         private AgentRequest agent;
         private SmtpRequest smtp;
         private OAuthRequest oauth;
+        private GitRequest git;
     }
 
     /** 全局配置（脱敏视图） */
@@ -175,6 +212,14 @@ public class SettingsController {
                         .gitlabBaseUrl(req.getOauth().getGitlabBaseUrl())
                         .build();
                 update.setOauth(oauth);
+            }
+            if (req.getGit() != null) {
+                Settings.Git git = Settings.Git.builder()
+                        .githubToken(req.getGit().getGithubToken())
+                        .gitlabToken(req.getGit().getGitlabToken())
+                        .gitlabUrl(req.getGit().getGitlabUrl())
+                        .build();
+                update.setGit(git);
             }
             settingsService.update(update);
             return settingsService.view();

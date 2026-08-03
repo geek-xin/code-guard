@@ -17,6 +17,21 @@ public class Settings {
     private Smtp smtp;
     /** 第三方登录（OAuth）全局配置：保存后热生效，优先于 application.yml 环境变量 */
     private OAuth oauth;
+    /** Git 访问令牌全局配置：GitHub / GitLab 私有仓库拉取、分支查询、创建 Issue 时复用 */
+    private Git git;
+
+    @Data
+    @Builder
+    @NoArgsConstructor
+    @AllArgsConstructor
+    public static class Git {
+        /** GitHub Personal Access Token（私有仓库拉取/建 Issue 用） */
+        private String githubToken;
+        /** GitLab Personal Access Token（私有仓库拉取/分支查询用） */
+        private String gitlabToken;
+        /** GitLab Base URL，默认 https://gitlab.com（内网/自建 GitLab 填写） */
+        private String gitlabUrl;
+    }
 
     @Data
     @Builder

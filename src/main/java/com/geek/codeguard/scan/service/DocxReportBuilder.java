@@ -118,6 +118,8 @@ public class DocxReportBuilder {
     }
 
     private String p(String text, int size, boolean bold, String color) {
+        // 单元格/段落文本内不能有裸换行符（会破坏 OOXML 文本节点渲染），统一替换为空格
+        String safeText = text == null ? "" : text.replace("\r", " ").replace("\n", " ");
         StringBuilder b = new StringBuilder();
         b.append("<w:p><w:pPr><w:spacing w:before=\"80\" w:after=\"80\"/>");
         b.append("<w:rPr><w:sz w:val=\"").append(size * 2).append("\"/><w:szCs w:val=\"").append(size * 2).append("\"/>");
@@ -127,7 +129,7 @@ public class DocxReportBuilder {
         b.append("<w:r><w:rPr><w:sz w:val=\"").append(size * 2).append("\"/><w:szCs w:val=\"").append(size * 2).append("\"/>");
         if (bold) b.append("<w:b/>");
         if (color != null) b.append("<w:color w:val=\"").append(color).append("\"/>");
-        b.append("</w:rPr><w:t xml:space=\"preserve\">").append(text).append("</w:t></w:r></w:p>");
+        b.append("</w:rPr><w:t xml:space=\"preserve\">").append(safeText).append("</w:t></w:r></w:p>");
         return b.toString();
     }
 
@@ -141,7 +143,7 @@ public class DocxReportBuilder {
         for (String border : new String[]{"top", "left", "bottom", "right", "insideH", "insideV"}) {
             b.append("<w:").append(border).append(" w:val=\"single\" w:sz=\"4\" w:color=\"444444\"/>");
         }
-        b.append("</w:tblBorders><w:tblW w:w=\"0\" w:type=\"auto\"/>");
+        b.append("</w:tblBorders><w:tblW w:w=\"0\" w:type=\"auto\"/></w:tblPr>");
         b.append("<w:tblGrid>");
         for (int w : widths) b.append("<w:gridCol w:w=\"").append(w).append("\"/>");
         b.append("</w:tblGrid>");
