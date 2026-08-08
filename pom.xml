@@ -13,7 +13,7 @@
 
     <groupId>com.geek</groupId>
     <artifactId>code-guard</artifactId>
-    <version>0.2.0</version>
+    <version>0.2.1</version>
     <packaging>jar</packaging>
     <name>code-guard</name>
     <description>code-guard - SAST + SCA + Code Review Agent 代码安全分析平台</description>
