@@ -26,7 +26,8 @@ export default function ScansPage() {
   }, []);
   const [nameFilter, setNameFilter] = useState('');
   const [statusFilter, setStatusFilter] = useState('');
-  const [collapsed, setCollapsed] = useState<Set<string>>(new Set());
+  // 默认所有分组折叠，点击组头才展开
+  const [expanded, setExpanded] = useState<Set<string>>(new Set());
 
   useEffect(() => {
     const load = () => {
@@ -78,7 +79,7 @@ export default function ScansPage() {
   }, [filtered, projById]);
 
   const toggle = (key: string) => {
-    setCollapsed((prev) => {
+    setExpanded((prev) => {
       const next = new Set(prev);
       if (next.has(key)) next.delete(key);
       else next.add(key);
@@ -159,7 +160,7 @@ export default function ScansPage() {
                   : <FolderOpen className="h-4 w-4" />;
             const title = p?.alias || p?.name || g.key;
             const address = p?.repoUrl || p?.localPath || g.key;
-            const isCollapsed = collapsed.has(g.key);
+            const isExpanded = expanded.has(g.key);
             return (
               <Card key={g.key}>
                 {/* 组头 */}
@@ -168,7 +169,7 @@ export default function ScansPage() {
                   onClick={() => toggle(g.key)}
                   className="flex w-full items-center gap-3 border-b-2 border-ink/10 px-4 py-3 text-left transition-colors hover:bg-paper"
                 >
-                  <span className="text-primary">{isCollapsed ? <ChevronRight className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}</span>
+                  <span className="text-primary">{isExpanded ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}</span>
                   <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md border-chunky border-ink bg-white shadow-chunky-sm text-primary">
                     {sourceIcon}
                   </span>
@@ -182,7 +183,7 @@ export default function ScansPage() {
                   </div>
                 </button>
                 {/* 组内记录（时间倒序） */}
-                {!isCollapsed && (
+                {isExpanded && (
                   <div className="divide-y-2 divide-ink/10">
                     {g.records.map((s) => (
                       <a

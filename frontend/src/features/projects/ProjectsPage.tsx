@@ -317,21 +317,6 @@ function ProjectCard({ project, busy, onScan, onSync, onEdit, onDelete }: {
           <Badge variant="outline" className="shrink-0">{src.label}</Badge>
         </div>
 
-        {/* 标签 */}
-        {project.tags && project.tags.length > 0 && (
-          <div className="flex flex-wrap gap-1">
-            {project.tags.map((t) => (
-              <span
-                key={t}
-                className="inline-flex items-center rounded-full border-chunky border-ink px-2 py-0.5 text-[11px] font-black text-white"
-                style={{ background: tagColor(t) }}
-              >
-                {t}
-              </span>
-            ))}
-          </div>
-        )}
-
         {/* 副标题：名称 / 描述 */}
         {(project.alias && project.alias !== project.name || project.description) && (
           <p className="line-clamp-1 break-all text-xs font-semibold text-ink-muted">
@@ -342,8 +327,17 @@ function ProjectCard({ project, busy, onScan, onSync, onEdit, onDelete }: {
           </p>
         )}
 
-        {/* 状态徽章行 */}
+        {/* 状态徽章行：标签放在代码就绪之前 */}
         <div className="flex flex-wrap items-center gap-1.5">
+          {project.tags && project.tags.length > 0 && project.tags.map((t) => (
+            <span
+              key={t}
+              className="inline-flex items-center rounded-full border-chunky border-ink px-2 py-0.5 text-[11px] font-black text-white"
+              style={{ background: tagColor(t) }}
+            >
+              {t}
+            </span>
+          ))}
           {syncBadge}
           {running ? <Badge variant="warning">扫描中</Badge> : project.lastScanStatus === 'COMPLETED' ? (
             <Badge variant="success">已扫描</Badge>
